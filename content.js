@@ -108,7 +108,7 @@ window.addEventListener("yt-page-data-updated", (e) => {
       console.log("No container");
     }
 
-    if (container) {
+    if (container && (found || error)) {
       injectButton(container, { found, error: channelDataError });
     }
   }, 500)
