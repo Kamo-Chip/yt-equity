@@ -1,8 +1,9 @@
 let activePopup = null;
 let channelData = null;
 let channelDataError = "";
+const brw = 'browser' in this ? browser : chrome;
 
-fetch(chrome.runtime.getURL("/data/channels.json"))
+fetch(brw.runtime.getURL("/data/channels.json"))
   .then((res) => res.json())
   .then((json) => {
     channelData = json.channels;
@@ -100,14 +101,17 @@ window.addEventListener("yt-page-data-updated", (e) => {
     }
   }
 
-  const container = findBadgeContainer();
+  setTimeout(() => {
+    const container = findBadgeContainer();
 
-  if (!container) {
-    console.log("No container");
-  }
-  if (container) {
-    injectButton(container, { found, error: channelDataError });
-  }
+    if (!container) {
+      console.log("No container");
+    }
+
+    if (container && (found || error)) {
+      injectButton(container, { found, error: channelDataError });
+    }
+  }, 500)
 });
 
 function injectButton(container, { found, error }) {
@@ -153,7 +157,7 @@ function injectButton(container, { found, error }) {
     if (error) {
       const li = document.createElement("li");
       li.innerHTML = `
-            <img src="${chrome.runtime.getURL(
+            <img src="${brw.runtime.getURL(
               "icons/error.svg"
             )}" width="16" height="16" />
             ${error}
@@ -162,7 +166,7 @@ function injectButton(container, { found, error }) {
     } else if (found) {
       const li1 = document.createElement("li");
       li1.innerHTML = `
-        <img src="${chrome.runtime.getURL(
+        <img src="${brw.runtime.getURL(
           "icons/money.svg"
         )}" width="16" height="16" />
         <strong>Investment Status:</strong>
@@ -174,7 +178,7 @@ function injectButton(container, { found, error }) {
       if (found.firmName && found.firmWebsite) {
         const li2 = document.createElement("li");
         li2.innerHTML = `
-          <img src="${chrome.runtime.getURL(
+          <img src="${brw.runtime.getURL(
             "icons/institution.svg"
           )}" width="16" height="16" />
           ${
@@ -189,7 +193,7 @@ function injectButton(container, { found, error }) {
 
       const li3 = document.createElement("li");
       li3.innerHTML = `
-        <img src="${chrome.runtime.getURL(
+        <img src="${brw.runtime.getURL(
           "icons/link.svg"
         )}" width="16" height="16" />
         <strong>Source:</strong>
@@ -199,7 +203,7 @@ function injectButton(container, { found, error }) {
     } else {
       const li = document.createElement("li");
       li.innerHTML = `
-        <img src="${chrome.runtime.getURL(
+        <img src="${brw.runtime.getURL(
           "icons/money.svg"
         )}" width="16" height="16" />
         <strong>Investment Status:</strong> Independent
@@ -209,7 +213,7 @@ function injectButton(container, { found, error }) {
 
     const closeBtn = document.createElement("span");
     closeBtn.id = "pe-popup-close";
-    closeBtn.innerHTML = `<img src="${chrome.runtime.getURL(
+    closeBtn.innerHTML = `<img src="${brw.runtime.getURL(
       "icons/close.svg"
     )}" width="16" height="16" style="cursor:pointer"/>`;
 
