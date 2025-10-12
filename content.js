@@ -101,14 +101,17 @@ window.addEventListener("yt-page-data-updated", (e) => {
     }
   }
 
-  const container = findBadgeContainer();
+  setTimeout(() => {
+    const container = findBadgeContainer();
 
-  if (!container) {
-    console.log("No container");
-  }
-  if (container) {
-    injectButton(container, { found, error: channelDataError });
-  }
+    if (!container) {
+      console.log("No container");
+    }
+
+    if (container) {
+      injectButton(container, { found, error: channelDataError });
+    }
+  }, 500)
 });
 
 function injectButton(container, { found, error }) {
