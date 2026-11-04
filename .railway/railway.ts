@@ -1,7 +1,8 @@
-import { defineRailway, project, service } from "railway/iac";
+import { defineRailway, github, project, service } from "railway/iac";
 
 export default defineRailway(() => {
   const web = service("web", {
+    source: github("Kamo-Chip/yt-equity", { branch: "main" }),
     build: {
       builder: "DOCKERFILE",
       dockerfilePath: "apps/web/Dockerfile",
@@ -14,6 +15,7 @@ export default defineRailway(() => {
     domains: [{ domain: "www.ytequity.com", port: 3000 }],
   });
   const api = service("api", {
+    source: github("Kamo-Chip/yt-equity", { branch: "main" }),
     build: {
       builder: "DOCKERFILE",
       dockerfilePath: "apps/api/Dockerfile",
