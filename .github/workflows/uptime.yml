@@ -1,0 +1,24 @@
+name: Production uptime
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    strategy:
+      fail-fast: false
+      matrix:
+        url:
+          - https://www.ytequity.com/health
+          - https://api.ytequity.com/health/ready
+    steps:
+      - name: Check production health
+        env:
+          HEALTH_URL: ${{ matrix.url }}
+        run: curl --fail --silent --show-error --retry 2 --retry-delay 5 --connect-timeout 10 --max-time 30 "$HEALTH_URL"

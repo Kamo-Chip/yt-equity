@@ -1,0 +1,12 @@
+.report {
+  max-width: 528px;
+}
+.report h1 {
+  margin-bottom: 8px;
+}
+.intro {
+  margin: 0 0 24px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 1.6;
+}

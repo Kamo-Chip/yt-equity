@@ -1,0 +1,67 @@
+{
+  "manifest_version": 3,
+  "name": "YT Equity",
+  "description": "See who really owns that YouTube channel.",
+  "version": "1.0.0",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://api.ytequity.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/*"
+      ],
+      "js": [
+        "config.js",
+        "content.js",
+        "support.js"
+      ],
+      "css": [
+        "content.css"
+      ]
+    }
+  ],
+  "background": {
+    "scripts": [
+      "config.js",
+      "background.js"
+    ]
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "icons/*"
+      ],
+      "matches": [
+        "https://www.youtube.com/*"
+      ]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "YT Equity",
+    "default_icon": "icons/icon128.png",
+    "default_popup": "popup.html"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "yt-equity@ytequity.com",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": [
+          "browsingActivity",
+          "websiteContent"
+        ]
+      }
+    }
+  },
+  "homepage_url": "https://ytequity.com/"
+}

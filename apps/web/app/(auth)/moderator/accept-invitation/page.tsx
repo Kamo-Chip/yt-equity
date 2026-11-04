@@ -1,0 +1,5 @@
+"use client";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+function AcceptInvitation() { const router = useRouter(); const params = useSearchParams(); const [message, setMessage] = useState("Activating moderator access…"); useEffect(() => { const token = params.get("token"); if (!token) { setMessage("This invitation link is invalid."); return; } fetch("/api/v1/invitations/accept", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ token }) }).then((response) => { if (!response.ok) throw new Error(); router.replace("/moderator"); }).catch(() => setMessage("We could not activate this invitation. Request a new invitation from an admin.")); }, [params, router]); return <main className="container page page-narrow"><h1>{message}</h1></main>; }
+export default function AcceptInvitationPage() { return <Suspense fallback={<main className="container page page-narrow"><h1>Loading invitation…</h1></main>}><AcceptInvitation /></Suspense>; }

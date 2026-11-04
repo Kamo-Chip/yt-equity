@@ -1,0 +1,21 @@
+{
+  "name": "@yt-equity/extension",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:chrome": "node scripts/build.mjs",
+    "build:firefox": "BROWSER=firefox node scripts/build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "typecheck": "node --check content.js && node --check background.js && node --check popup.js && node --check support.js && node --check scripts/build.mjs && node --check scripts/release.mjs && node --check scripts/dev.mjs && node --check scripts/preflight.mjs",
+    "build:release": "node scripts/build.mjs --release",
+    "release": "node scripts/release.mjs",
+    "publish:check": "node scripts/preflight.mjs",
+    "dev": "node scripts/dev.mjs"
+  },
+  "devDependencies": {
+    "dotenv": "^17.4.2",
+    "jsdom": "^30.1.1",
+    "typescript": "^5.8.0"
+  }
+}

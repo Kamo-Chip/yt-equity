@@ -1,0 +1,2 @@
+import { SignInForm } from "@/components/features/sign-in-form";
+export default function SignInPage(){return <main className="auth-card"><p className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">Private workspace</p><h1 className="mb-3 text-2xl font-semibold tracking-tight">Welcome back</h1><p className="text-sm leading-6 text-muted-foreground">Enter your approved administrator email to receive a sign-in link.</p><SignInForm/></main>}

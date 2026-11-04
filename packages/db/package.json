@@ -1,0 +1,28 @@
+{
+  "name": "@yt-equity/db",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "tsx src/seed.ts",
+    "db:seed:creator": "tsx src/seed-creator.ts"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.0",
+    "dotenv": "^17.2.1",
+    "drizzle-orm": "^0.44.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "drizzle-kit": "^0.31.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.0"
+  }
+}

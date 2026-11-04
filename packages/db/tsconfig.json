@@ -1,0 +1,1 @@
+{"extends":"../../tsconfig.json","compilerOptions":{"module":"NodeNext","moduleResolution":"NodeNext","typeRoots":["../../node_modules/.pnpm/node_modules/@types","../../node_modules/.pnpm/@types+node@22.20.2/node_modules/@types"]},"include":["src","drizzle.config.ts"]}

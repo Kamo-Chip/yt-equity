@@ -1,0 +1,48 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789403258066,
+      "tag": "0000_even_bloodaxe",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789405360415,
+      "tag": "0001_chief_thunderbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790016000000,
+      "tag": "0002_moderator_workspace",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793790000000,
+      "tag": "0003_general_reports",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793806635270,
+      "tag": "0004_graph_queue_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793821574306,
+      "tag": "0005_creator_easter_egg",
+      "breakpoints": true
+    }
+  ]
+}
