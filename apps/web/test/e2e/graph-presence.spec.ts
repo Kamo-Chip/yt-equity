@@ -5,7 +5,6 @@ const firmFor = (page: Page) =>
 const channelFor = (page: Page) =>
   page.locator(".react-flow__node").filter({ hasText: "Shared channel" });
 async function freeze(page: Page) {
-  await page.clock.install();
   await page.clock.pauseAt(new Date(Date.now() + 50));
 }
 async function toggle(page: Page, firm = firmFor(page)) {
@@ -23,6 +22,11 @@ async function dismissDetails(page: Page) {
   await close.click({ force: true });
   await page.clock.runFor(350);
   await expect(page.locator('[data-slot="sheet-overlay"]')).toHaveCount(0);
+  // Resizing preserves the camera, so a firm can end up clipped on mobile.
+  // Fit explicitly before the next forced click, cancelling any pending fit
+  // from opening the sheet rather than accidentally clicking the canvas.
+  await page.getByRole("button", { name: "Fit View", exact: true }).click({ force: true });
+  await page.clock.runFor(16);
 }
 async function world(node: Locator) {
   return node.evaluate((el) => {
@@ -43,8 +47,27 @@ async function opacity(node: Locator) {
 }
 
 test.beforeEach(async ({ page, request }) => {
+  // Install before application code captures native timers/animation frames.
+  await page.clock.install();
   await request.post(fixtureApi + "/__reset");
   await page.emulateMedia({ reducedMotion: "no-preference" });
+});
+
+test("connections render before asynchronous node measurements arrive", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  });
+  await page.goto("/?q=Shared");
+  await expect(page.locator(".react-flow__node")).toHaveCount(3);
+  await expect(page.locator(".react-flow__edge-path")).toHaveCount(2);
+  for (const edge of await page.locator(".react-flow__edge-path").all()) {
+    await expect(edge).toHaveAttribute("d", /^M .+ L .+/);
+    await expect(edge).not.toHaveAttribute("d", /NaN|undefined/);
+  }
 });
 
 test("channels unfold then gather with matching node and edge fades", async ({
@@ -215,6 +238,7 @@ test("mobile touch taps unfold and gather channels", async ({ browser }) => {
   });
   try {
     const page = await context.newPage();
+    await page.clock.install();
     await page.goto("/");
     const firm = firmFor(page);
     await expect(firm).toBeVisible();

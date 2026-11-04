@@ -278,6 +278,7 @@ export function OwnershipAtlas({
     );
     return {
       nodes: visible.map((n) => {
+        const size = n.kind === "firm" ? 84 : 52;
         const parents = visibleEdges.filter((e) => e.target === n.id);
         const parent = parents[0];
         let p = rootPositions.get(n.id) ?? layout.node(n.id);
@@ -311,6 +312,14 @@ export function OwnershipAtlas({
           id: n.id,
           type: "entity",
           position: { x: p.x, y: p.y },
+          // Orbs have fixed CSS dimensions. Supplying their geometry lets
+          // connections render before the asynchronous DOM measurement pass.
+          width: size,
+          height: size,
+          handles: [
+            { type: "target" as const, position: Position.Left, x: 0, y: size / 2 },
+            { type: "source" as const, position: Position.Right, x: size, y: size / 2 },
+          ],
           connectable: false,
           selected: false,
           ariaLabel:

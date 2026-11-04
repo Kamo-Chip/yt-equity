@@ -41,7 +41,7 @@ async function storeScreenshot(page: Page, filename: string, heading: string, de
 
 // Exercises the actual packaged content script -> Chrome worker -> HTTP API boundary.
 // YouTube markup and channel results are fixtures; this does not certify live YouTube selectors.
-test("packaged extension requires consent, annotates and filters, then stops when paused", async ({}, testInfo) => {
+test("packaged extension defaults on, annotates and filters, and honors a saved pause", async ({}, testInfo) => {
   const temp = await mkdtemp(join(tmpdir(), "yt-equity-browser-"));
   const requests: { identifiers: string[] }[] = [];
   const api = createServer((request, response) => {
@@ -64,7 +64,8 @@ test("packaged extension requires consent, annotates and filters, then stops whe
     if (!address || typeof address === "string") throw Error("API fixture failed to bind");
     const buildModule = resolve("../extension/scripts/build.mjs");
     const { buildExtension } = await import(buildModule);
-    const { target } = await buildExtension({ browser: "chrome", apiUrl: `http://127.0.0.1:${address.port}`, webUrl: "http://127.0.0.1:3100", outDir: join(temp, "extension") });
+    const webUrl = String(testInfo.project.use.baseURL);
+    const { target } = await buildExtension({ browser: "chrome", apiUrl: `http://127.0.0.1:${address.port}`, webUrl, outDir: join(temp, "extension") });
     context = await chromium.launchPersistentContext(join(temp, "profile"), {
       channel: "chromium", headless: true, viewport: { width: 1280, height: 800 },
       args: [`--disable-extensions-except=${target}`, `--load-extension=${target}`]
@@ -73,24 +74,29 @@ test("packaged extension requires consent, annotates and filters, then stops whe
     const id = new URL(worker.url()).host;
     const popup = await context.newPage();
     await popup.goto(`chrome-extension://${id}/popup.html`);
-    const enable = popup.getByRole("button", { name: "Enable ownership lookups", exact: true });
-    await expect(enable).toBeEnabled();
+    await expect(popup.getByRole("switch", { name: "Acquired channels", exact: true })).toBeEnabled();
+    await expect(popup.getByRole("button", { name: "Enable ownership lookups", exact: true })).toHaveCount(0);
+    // Fresh profiles look up automatically; the popup does not write a new
+    // preference or reopen the removed setup flow.
+    expect(await worker.evaluate(() => (globalThis as any).chrome.storage.local.get("ownershipLookupsEnabled"))).toEqual({});
     const youtube = await context.newPage();
     await context.route("https://www.youtube.com/**", route => route.fulfill({ contentType: "text/html", body: `<!doctype html><html><body><ytd-rich-item-renderer><div><a href="/watch?v=one">Video</a><div id="channel-name"><a href="/@alpha">Alpha</a></div><div id="metadata-line"></div></div></ytd-rich-item-renderer></body></html>` }));
     await youtube.goto("https://www.youtube.com/");
-    await youtube.waitForTimeout(300);
-    expect(requests).toHaveLength(0);
-    await popup.screenshot({ path: testInfo.outputPath("consent-before.png") });
-    await storeScreenshot(popup, "ownership-lookups.png", "See the ownership behind the channel.", "Public ownership and funding records, right on YouTube. You choose when to enable lookups.");
-    await enable.click();
-    await expect(youtube.locator(".pe-ownership-badge")).toContainText("Acquired by Example Firm");
+    await expect(youtube.locator(".pe-ownership-label")).toHaveText("Acquired");
+    await expect(youtube.locator(".pe-ownership-badge")).toBeVisible();
+    await expect(youtube.locator(".pe-ownership-badge"))
+      .toHaveAttribute("aria-label", /^View acquisition details/);
     expect(requests[0]).toEqual({ identifiers: ["@alpha"] });
+    await popup.screenshot({ path: testInfo.outputPath("lookups-enabled.png") });
+    await storeScreenshot(popup, "ownership-lookups.png", "See the ownership behind the channel.", "Public ownership and funding records, right on YouTube. Disable the extension to stop automatic lookups.");
     await popup.getByRole("switch", { name: "Acquired channels", exact: true }).check();
     await expect(youtube.locator(".pe-card-filtered")).toHaveCount(1);
     await storeScreenshot(popup, "feed-filters.png", "Choose what appears in your feed.", "Hide channels with confirmed acquisitions or funding. Choose where filters apply and reveal any hidden video.");
     await youtube.getByRole("button", { name: "Reveal video from Alpha" }).click();
     await expect(youtube.locator(".pe-card-filtered")).toHaveCount(0);
-    await popup.getByRole("button", { name: "Pause ownership lookups", exact: true }).click();
+    // Honor preferences saved by earlier versions even though the current
+    // popup no longer has a pause/setup button.
+    await worker.evaluate(() => (globalThis as any).chrome.storage.local.set({ ownershipLookupsEnabled: false }));
     await expect(youtube.locator(".pe-ownership-badge")).toHaveCount(0);
     const count = requests.length;
     await youtube.evaluate(() => {
@@ -99,7 +105,14 @@ test("packaged extension requires consent, annotates and filters, then stops whe
     });
     await youtube.waitForTimeout(300);
     expect(requests).toHaveLength(count);
-    await popup.screenshot({ path: testInfo.outputPath("consent-paused.png") });
+    await youtube.reload();
+    await youtube.waitForTimeout(300);
+    await expect(youtube.locator(".pe-ownership-badge")).toHaveCount(0);
+    expect(requests).toHaveLength(count);
+    await worker.evaluate(() => (globalThis as any).chrome.storage.local.set({ ownershipLookupsEnabled: true }));
+    await expect(youtube.locator(".pe-ownership-label")).toHaveText("Acquired");
+    await expect(youtube.locator(".pe-card-filtered")).toHaveCount(1);
+    expect(requests.length).toBeGreaterThan(count);
   } finally {
     await context?.close();
     await new Promise<void>(resolve => api.close(() => resolve()));

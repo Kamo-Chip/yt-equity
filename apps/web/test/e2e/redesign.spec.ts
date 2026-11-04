@@ -863,6 +863,8 @@ test("full-width header stays aligned above compact navigation in both themes", 
   ).toBeHidden();
   const explore = page.getByRole("link", { name: "Explore", exact: true });
   const report = page.getByRole("link", { name: "Report an issue", exact: true });
+  const privacy = page.getByRole("link", { name: "Extension privacy", exact: true });
+  await expect(rail.getByRole("link")).toHaveCount(4);
   await expect(explore).toHaveAttribute("data-active", "true");
   await explore.hover();
   await expect(page.getByRole("tooltip", { name: "Explore", exact: true })).toBeVisible();
@@ -877,10 +879,10 @@ test("full-width header stays aligned above compact navigation in both themes", 
   await expect(page.locator(".graph-orb.firm")).toHaveCount(2);
   const railBefore = (await rail.boundingBox())!;
   expect(railBefore.y).toBe(first.y + first.height + 12);
-  expect(railBefore.height).toBeLessThan(180);
+  expect(railBefore.height).toBeLessThan(240);
   const railSurface = (await rail.locator('[data-slot="sidebar-inner"]').boundingBox())!;
   const firstItem = (await explore.boundingBox())!;
-  const lastItem = (await report.boundingBox())!;
+  const lastItem = (await privacy.boundingBox())!;
   const leftInset = firstItem.x - railSurface.x;
   expect(firstItem.y - railSurface.y).toBe(leftInset);
   expect(railSurface.x + railSurface.width - firstItem.x - firstItem.width).toBe(leftInset);
@@ -918,7 +920,7 @@ test("full-width header stays aligned above compact navigation in both themes", 
     expect(
       await page.locator(".react-flow__viewport").getAttribute("style"),
     ).toBe(viewport);
-    expect((await rail.boundingBox())!.height).toBeLessThan(180);
+    expect((await rail.boundingBox())!.height).toBeLessThan(240);
     expect((await page.locator(".graph-canvas").boundingBox())!.x).toBe(0);
     expect(
       (await page.locator(".react-flow__controls").boundingBox())!.x,
@@ -1087,8 +1089,9 @@ test("canvas controls support zoom, fit, locking, and layout reset without enabl
 });
 
 
-// Timed steps model a real pointer velocity; Playwright's untimed steps can all
-// arrive in one frame and do not reliably describe a throw.
+// Author native input timestamps so DevTools delays cannot turn a flick into
+// the intentional 100 ms hold-before-release behavior. Use a moderate gesture
+// whose glide should stay inside the asserted 160 world-unit landing radius.
 async function throwNode(
   page: Page,
   node: import("@playwright/test").Locator,
@@ -1099,16 +1102,24 @@ async function throwNode(
   const box = (await node.boundingBox())!;
   const x = box.x + box.width / 2,
     y = box.y + box.height / 2;
-  await page.mouse.move(x, y);
-  await page.mouse.down();
-  for (let i = 1; i <= 6; i++) {
-    await page.mouse.move(x + (dx * i) / 6, y + (dy * i) / 6);
-    await page.waitForTimeout(16);
+  const input = await page.context().newCDPSession(page);
+  let timestamp = Date.now() / 1000;
+  try {
+    await input.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, timestamp });
+    await input.send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", buttons: 1, clickCount: 1, timestamp });
+    for (let i = 1; i <= 6; i++) {
+      timestamp += 0.04;
+      await page.waitForTimeout(40);
+      await input.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: x + dx * i / 6, y: y + dy * i / 6, button: "left", buttons: 1, timestamp });
+    }
+    if (pause) await page.waitForTimeout(pause);
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
+    const released = await worldPosition(node);
+    await input.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: x + dx, y: y + dy, button: "left", buttons: 0, clickCount: 1, timestamp: timestamp + pause / 1000 + 0.01 });
+    return released;
+  } finally {
+    await input.detach();
   }
-  if (pause) await page.waitForTimeout(pause);
-  const released = await worldPosition(node);
-  await page.mouse.up();
-  return released;
 }
 
 for (const kind of ["firm", "channel"] as const) {
