@@ -10,6 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ProfileImageUpload } from "./profile-image-upload";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -61,7 +62,7 @@ export function RelationshipEditor({
   const exit = useOverlayExit();
   const onClose = () => exit.close(completeClose);
   const onSaved = () => exit.close(completeSave);
-  const { data, busy, errors, failure, confirm, setConfirm, navigation, close, change, save, archive, channelId, firmId, channelOptions, firmOptions, channelOpen, setChannelOpen, channelSearch, setChannelSearch, firmOpen, setFirmOpen, firmSearch, setFirmSearch, channelLookup, firmLookup, sourceChange } = useRelationshipDraft({ record, submission, channels, firms, onClose, onSaved });
+  const { data, busy, setUploading, errors, failure, confirm, setConfirm, navigation, close, change, save, archive, channelId, firmId, channelOptions, firmOptions, channelOpen, setChannelOpen, channelSearch, setChannelSearch, firmOpen, setFirmOpen, firmSearch, setFirmSearch, channelLookup, firmLookup, sourceChange } = useRelationshipDraft({ record, submission, channels, firms, onClose, onSaved });
   return (
     <>
       <Sheet
@@ -239,6 +240,10 @@ export function RelationshipEditor({
                       <FieldError>{errors["channel.name"]}</FieldError>
                     )}
                   </Field>
+                  <div className="sm:col-span-2">
+                    <ProfileImageUpload kind="channels" value={data.channel.profilePictureUrl} disabled={busy} onBusyChange={setUploading}
+                      onChange={url => { if (!("id" in data.channel)) change("channel", { ...data.channel, profilePictureUrl: url }); }} />
+                  </div>
                 </div>
               )}
               <Field>
@@ -376,6 +381,10 @@ export function RelationshipEditor({
                       <FieldError>{errors["firm.website"]}</FieldError>
                     )}
                   </Field>
+                  <div className="sm:col-span-2">
+                    <ProfileImageUpload kind="firms" value={data.firm.profilePictureUrl} disabled={busy} onBusyChange={setUploading}
+                      onChange={url => { if (data.firm && !("id" in data.firm)) change("firm", { ...data.firm, profilePictureUrl: url }); }} />
+                  </div>
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4">

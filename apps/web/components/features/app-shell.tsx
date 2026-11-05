@@ -150,12 +150,12 @@ function ShellContent({
             <DialogTrigger asChild>
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
+                size="icon"
                 aria-label="Keep lights on"
-                className="size-9 shrink-0 p-0 text-muted-foreground sm:w-auto sm:px-3"
+                className="size-9 shrink-0 p-0 text-muted-foreground"
               >
                 <Coffee aria-hidden="true" />
-                <span className="hidden sm:inline">Keep lights on</span>
               </Button>
             </DialogTrigger>
             <DialogContent

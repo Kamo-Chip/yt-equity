@@ -360,7 +360,7 @@ export function OwnershipAtlas({
               maxZoom={1.8}
             >
               <AtlasGeometry viewport={viewport} onChange={onGeometryChange} />
-              <Background gap={24} size={1.4} color="var(--graph-grid)" />
+              <Background gap={24} size={2.4} color="var(--graph-grid)" />
               <Controls
                 orientation={mobile ? "horizontal" : "vertical"}
                 showInteractive

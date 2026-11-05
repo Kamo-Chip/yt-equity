@@ -60,10 +60,12 @@ export function useRelationshipDraft({ record, submission, channels, firms, onCl
   const [channelSearch, setChannelSearch] = useState(""),
     [firmSearch, setFirmSearch] = useState("");
   const [data, setData] = useState(initial),
-    [busy, setBusy] = useState(false),
+    [saving, setBusy] = useState(false),
+    [uploading, setUploading] = useState(false),
     [errors, setErrors] = useState<Record<string, string>>({}),
     [failure, setFailure] = useState(""),
     [confirm, setConfirm] = useState<"discard" | "archive" | null>(null);
+  const busy = saving || uploading;
   const dirty = JSON.stringify(data) !== JSON.stringify(initial);
   const navigation = useUnsavedNavigation(dirty || busy, () =>
     setConfirm("discard"),
@@ -178,5 +180,5 @@ export function useRelationshipDraft({ record, submission, channels, firms, onCl
         index === i ? { ...s, [key]: value || undefined } : s,
       ),
     );
-  return { data, busy, errors, failure, confirm, setConfirm, navigation, close, change, save, archive, channelId, firmId, channelOptions, firmOptions, channelOpen, setChannelOpen, channelSearch, setChannelSearch, firmOpen, setFirmOpen, firmSearch, setFirmSearch, channelLookup, firmLookup, sourceChange };
+  return { data, busy, setUploading, errors, failure, confirm, setConfirm, navigation, close, change, save, archive, channelId, firmId, channelOptions, firmOptions, channelOpen, setChannelOpen, channelSearch, setChannelSearch, firmOpen, setFirmOpen, firmSearch, setFirmSearch, channelLookup, firmLookup, sourceChange };
 }

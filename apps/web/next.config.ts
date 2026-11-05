@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
   },
   transpilePackages: ["@yt-equity/contracts"],
   cacheComponents: true,
+  experimental: { serverActions: { bodySizeLimit: "8mb" } },
   partialPrefetching: true,
   allowedDevOrigins: ["127.0.0.1"],
   // The floating dev badge overlaps the canvas controls. Error overlays remain enabled.

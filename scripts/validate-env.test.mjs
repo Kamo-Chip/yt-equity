@@ -5,6 +5,8 @@ import { validateEnvironment } from "./validate-env.mjs";
 
 const production = {
   NODE_ENV: "production",
+  MEDIA_PUBLIC_ORIGIN: "https://yt-equity-media.example.workers.dev",
+  MEDIA_UPLOAD_SECRET: "a-separate-persistent-media-secret-32-characters-long",
   DATABASE_URL: "postgresql://user:private-password@db.example.com/db?sslmode=require",
   WEB_ORIGIN: "https://www.ytequity.com",
   BETTER_AUTH_URL: "https://www.ytequity.com",
@@ -22,7 +24,7 @@ test("private HTTP upstream and public HTTPS auth origin pass production validat
 });
 
 test("production cannot silently fall back to localhost or missing email delivery", () => {
-  for (const key of ["API_PROXY_SECRET", "WEB_ORIGIN", "BETTER_AUTH_URL", "RESEND_API_KEY", "RESEND_FROM", "DATABASE_URL", "BETTER_AUTH_SECRET"]) {
+  for (const key of ["API_PROXY_SECRET", "WEB_ORIGIN", "BETTER_AUTH_URL", "RESEND_API_KEY", "RESEND_FROM", "DATABASE_URL", "BETTER_AUTH_SECRET", "MEDIA_PUBLIC_ORIGIN", "MEDIA_UPLOAD_SECRET"]) {
     assert.throws(() => validateEnvironment("api", { ...production, [key]: "" }), new RegExp(key));
   }
   assert.throws(() => validateEnvironment("web", { ...production, API_INTERNAL_URL: "" }), /API_INTERNAL_URL/);
@@ -50,4 +52,10 @@ test("both services require a strong independent proxy key", () => {
     for (const value of ["", "short", "replace-with-a-separate-long-random-secret"])
       assert.throws(() => validateEnvironment(service, { ...production, API_PROXY_SECRET: value }), /API_PROXY_SECRET/);
   }
+});
+
+test("media uploads require a Worker origin and a strong private key", () => {
+  for (const value of ["https://example.com", "https://media.workers.dev/path", "http://media.workers.dev"])
+    assert.throws(() => validateEnvironment("api", { ...production, MEDIA_PUBLIC_ORIGIN: value }), /MEDIA_PUBLIC_ORIGIN/);
+  assert.throws(() => validateEnvironment("api", { ...production, MEDIA_UPLOAD_SECRET: "short" }), /MEDIA_UPLOAD_SECRET/);
 });

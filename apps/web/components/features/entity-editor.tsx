@@ -10,6 +10,7 @@ import {
 } from "@yt-equity/contracts";
 import { ApiError } from "@/lib/api";
 import { mutateModerator } from "@/lib/workspace-mutation";
+import { ProfileImageUpload } from "./profile-image-upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
@@ -54,14 +55,16 @@ export function EntityEditor({
     [errors, setErrors] = useState<Record<string, string>>({}),
     [failure, setFailure] = useState(""),
     [confirm, setConfirm] = useState<"delete" | "discard" | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const working = busy || uploading;
   const dirty = JSON.stringify(values) !== JSON.stringify(initial);
-  const navigation = useUnsavedNavigation(dirty || busy, () =>
+  const navigation = useUnsavedNavigation(dirty || working, () =>
     setConfirm("discard"),
   );
   const title = kind === "channels" ? "channel" : "firm";
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (busy) return;
+    if (working) return;
     const data = Object.fromEntries(
       Object.entries(values).filter(([, v]) => v.trim()),
     );
@@ -100,7 +103,7 @@ export function EntityEditor({
     }
   }
   async function remove() {
-    if (!record || busy) return;
+    if (!record || working) return;
     setBusy(true);
     try {
       await mutateModerator(kind + "/" + record.id, "DELETE");
@@ -115,7 +118,7 @@ export function EntityEditor({
     }
   }
   const close = () => {
-    if (!busy) {
+    if (!working) {
       if (dirty) setConfirm("discard");
       else onClose();
     }
@@ -136,14 +139,14 @@ export function EntityEditor({
           if (!open) close();
         }}
       >
-        <DialogContent onAnimationEnd={exit.onAnimationEnd} onCloseAutoFocus={exit.onCloseAutoFocus} aria-describedby={undefined}>
+        <DialogContent onAnimationEnd={exit.onAnimationEnd} onCloseAutoFocus={exit.onCloseAutoFocus} aria-describedby={undefined} className="max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {record ? "Edit" : "Create"} {title}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={save}>
-            <fieldset disabled={busy} className="grid gap-4">
+            <fieldset disabled={working} className="grid gap-4">
               {Object.entries(values).map(([key, value]) => (
                 <Field key={key} data-invalid={!!errors[key]}>
                   <FieldLabel htmlFor={"entity-" + key}>
@@ -158,6 +161,11 @@ export function EntityEditor({
                       setErrors({});
                     }}
                   />
+                  {key === "profilePictureUrl" && (
+                    <ProfileImageUpload kind={kind} value={value} background={values.profilePictureBackground || undefined}
+                      disabled={working} onBusyChange={setUploading}
+                      onChange={url => { setValues(old => ({ ...old, profilePictureUrl: url })); setErrors({}); }} />
+                  )}
                   {errors[key] && <FieldError>{errors[key]}</FieldError>}
                 </Field>
               ))}
@@ -206,11 +214,11 @@ export function EntityEditor({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy} onClick={navigation.keepEditing}>
+            <AlertDialogCancel disabled={working} onClick={navigation.keepEditing}>
               Keep editing
             </AlertDialogCancel>
             <AlertDialogAction
-              disabled={busy}
+              disabled={working}
               onClick={(e) => {
                 if (confirm === "delete") {
                   e.preventDefault();

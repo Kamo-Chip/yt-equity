@@ -317,3 +317,13 @@ export type AdminInvitation = {
 };
 export type AdminUsersPage = PageResult<AdminModerator>;
 export type AdminInvitationsPage = PageResult<AdminInvitation>;
+
+// Raw files are capped before encoding; allow JSON/base64 overhead in transport.
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_IMAGE_BASE64_LENGTH = 4 * Math.ceil(MAX_IMAGE_BYTES / 3);
+export const imageUploadSchema = z.object({
+  kind: z.enum(["channels", "firms"]),
+  contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+  base64: z.string().min(4).max(MAX_IMAGE_BASE64_LENGTH).regex(/^[A-Za-z0-9+/]*={0,2}$/).refine(value => value.length % 4 === 0, "Invalid image encoding"),
+}).strict();
+export type ImageUpload = z.infer<typeof imageUploadSchema>;

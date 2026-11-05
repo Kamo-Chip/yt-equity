@@ -195,6 +195,8 @@ createServer(async (req, res) => {
   else if (path === "/api/auth/sign-out") {
     res.setHeader("set-cookie", "fixture-role=; Path=/; Max-Age=0");
     result = { success: true };
+  } else if (path === "/api/v1/moderator/media" && req.method === "POST") {
+    result = { url: `https://media.example/uploads/${data.kind}/test.webp` };
   } else if (path === "/api/v1/moderator/inbox") {
     const q = (params.get("q") ?? "").toLowerCase(),
       kind = params.get("kind") ?? "all";
@@ -321,8 +323,8 @@ createServer(async (req, res) => {
         ...relationships.filter((r) => r.id !== result.id),
       ];
     }
-  } else if (path.startsWith("/api/v1/moderator/channels/") && req.method === "PATCH") {
-    result = channels.find(c => c.id === path.split("/")[5]);
+  } else if (/^\/api\/v1\/moderator\/(channels|firms)\//.test(path) && req.method === "PATCH") {
+    result = (path.includes("/channels/") ? channels : firms).find(c => c.id === path.split("/")[5]);
     if (result) Object.assign(result, data);
     else { status = 404; result = { error: { message: "Channel not found" } }; }
   } else if (req.method === "GET" && ["/api/v1/admin/moderators/users", "/api/v1/admin/moderators/invitations"].includes(path)) {

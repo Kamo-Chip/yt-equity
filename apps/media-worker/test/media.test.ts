@@ -59,3 +59,27 @@ test("non-image objects cannot be served or cached", async () => {
   assert.equal((await serveMedia(new Request(url), f.env, f.ctx, f.cache)).status, 415);
   assert.equal(f.pending.length, 0);
 });
+
+test("upload storage requires the shared secret and verifies the content hash", async () => {
+  const data = new Uint8Array([82, 73, 70, 70, 4, 0, 0, 0, 87, 69, 66, 80]);
+  const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", data)), b => b.toString(16).padStart(2, "0")).join("");
+  const path = `https://media.example/uploads/firms/${hash}.webp`;
+  let writes = 0;
+  const f = fixture();
+  f.env.MEDIA_UPLOAD_SECRET = "private-test-secret";
+  f.env.MEDIA.put = async (key: string, body: Uint8Array) => {
+    writes++;
+    assert.equal(key, `uploads/firms/${hash}.webp`);
+    assert.deepEqual(body, data);
+  };
+  const send = (url = path, token = "private-test-secret", body = data) => serveMedia(new Request(url, {
+    method: "PUT", headers: { authorization: `Bearer ${token}`, "content-type": "image/webp" }, body,
+  }), f.env, f.ctx);
+  assert.equal((await send(path, "wrong")).status, 401);
+  assert.equal((await send(path + "?query=1")).status, 400);
+  assert.equal((await send(path.replace(hash, "0".repeat(64)))).status, 400);
+  assert.equal((await send(path, "private-test-secret", new Uint8Array([1, 2, 3]))).status, 400);
+  assert.equal((await send()).status, 201);
+  assert.equal(writes, 1);
+  assert.equal((await serveMedia(new Request(path), f.env, f.ctx)).status, 200);
+});

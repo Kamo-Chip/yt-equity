@@ -1,3 +1,4 @@
+import { registerMediaRoutes } from "./routes/media.js";
 import cors from "@fastify/cors";
 import { db } from "@yt-equity/db";
 import { pool } from "@yt-equity/db/client";
@@ -62,6 +63,7 @@ export async function buildApp() {
   registerSubmissionRoutes(app);
   registerModerationRoutes(app);
   registerDirectoryRoutes(app);
+  registerMediaRoutes(app);
   registerAdminRoutes(app);
   registerAuthRoutes(app);
   return app;
