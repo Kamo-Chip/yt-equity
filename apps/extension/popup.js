@@ -1,12 +1,6 @@
 const extensionApi = globalThis.browser ?? globalThis.chrome;
-const FILTER_DEFAULTS = {
-  hideConfirmedAcquisitions: false,
-  hideConfirmedFunding: false,
-  filterHome: true,
-  filterSearch: true,
-  filterSuggested: true,
-  filterSubscriptions: false
-};
+const messages = YT_EQUITY_SHARED.messages;
+const FILTER_DEFAULTS = YT_EQUITY_SHARED.filterDefaults;
 const toggles = [...document.querySelectorAll("input[data-setting]")];
 const error = document.querySelector("#setting-error");
 const info = document.querySelector("#filter-info");
@@ -84,7 +78,7 @@ async function readTheme() {
   try {
     const [tab] = await extensionApi.tabs.query({ active: true, currentWindow: true });
     if (tab?.id == null) return;
-    const response = await extensionApi.tabs.sendMessage(tab.id, { type: "yt-equity:get-theme" });
+    const response = await extensionApi.tabs.sendMessage(tab.id, { type: messages.getTheme });
     if (response?.theme === "light" || response?.theme === "dark") {
       document.documentElement.dataset.theme = response.theme;
     }

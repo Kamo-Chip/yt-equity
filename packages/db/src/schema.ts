@@ -21,7 +21,8 @@ export const channelAliases = pgTable("channel_aliases", {
 });
 
 export const firms = pgTable("firms", {
-  id: uuid("id").defaultRandom().primaryKey(), name: text("name").notNull().unique(), website: text("website")
+  id: uuid("id").defaultRandom().primaryKey(), name: text("name").notNull().unique(), website: text("website"),
+  profilePictureUrl: text("profile_picture_url"), profilePictureBackground: text("profile_picture_background")
 });
 
 export const claims = pgTable("claims", {
@@ -38,9 +39,6 @@ export const submissions = pgTable("submissions", {
 }, (table) => [index("submissions_pending_queue_idx").on(table.status, table.createdAt, table.id)]);
 export const moderationDecisions = pgTable("moderation_decisions", {
   id: uuid("id").defaultRandom().primaryKey(), submissionId: uuid("submission_id").notNull().references(() => submissions.id), moderatorId: text("moderator_id").notNull(), decision: submissionStatus("decision").notNull(), note: text("note"), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
-});
-export const disputes = pgTable("disputes", {
-  id: uuid("id").defaultRandom().primaryKey(), claimId: uuid("claim_id").notNull().references(() => claims.id), submissionId: uuid("submission_id").references(() => submissions.id), explanation: text("explanation").notNull(), status: submissionStatus("status").notNull().default("pending"), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
 });
 export const auditEvents = pgTable("audit_events", {
   id: uuid("id").defaultRandom().primaryKey(), actorId: text("actor_id"), action: text("action").notNull(), entityType: text("entity_type").notNull(), entityId: text("entity_id").notNull(), metadata: jsonb("metadata"), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()

@@ -11,7 +11,7 @@
       <header class="brand">
         <span class="brand-mark" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="m8 5 11 7-11 7Z"/></svg></span>
         <h1>YT Equity</h1>
-        <a class="support-link" aria-haspopup="dialog" aria-controls="support-dialog" href="https://www.youtube.com/watch?v=WNGNhItoRh8#yt-equity-thanks" target="_blank" rel="noreferrer" aria-label="Leave a tip" title="Leave a tip"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8h1a3 3 0 1 1 0 6h-1M3 8h15v9a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3ZM6 2v2M10 2v2M14 2v2"/></svg></a>
+        <a class="support-link" aria-haspopup="dialog" aria-controls="support-dialog" href="https://www.youtube.com/watch?v=WNGNhItoRh8#yt-equity-thanks" target="_blank" rel="noreferrer" aria-label="Keep lights on" title="Keep lights on"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8h1a3 3 0 1 1 0 6h-1M3 8h15v9a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3ZM6 2v2M10 2v2M14 2v2"/></svg></a>
       </header>
 
       <section class="settings" aria-label="Feed filter">
@@ -76,15 +76,18 @@
       </nav>
       <footer class="popup-footer"><a href="__WEB_URL__/privacy" target="_blank" rel="noreferrer">Privacy policy</a></footer>
     </main>
-    <dialog id="support-dialog" class="support-dialog" aria-labelledby="support-title" aria-describedby="support-description">
-      <h2 id="support-title">Leave a tip</h2>
-      <p id="support-description">Leave a tip with YouTube Super Thanks. This will open a YouTube video in a new tab, where you enter the amount to tip.</p>
+    <dialog id="support-dialog" class="support-dialog" aria-labelledby="support-title" aria-describedby="support-description support-note">
+      <div class="support-dialog-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8h1a3 3 0 1 1 0 6h-1M3 8h15v9a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3ZM6 2v2M10 2v2M14 2v2"/></svg></div>
+      <h2 id="support-title">Keep lights on</h2>
+      <p id="support-description">Your support helps me keep YT Equity going. Thank you!</p>
+      <p id="support-note" class="support-dialog-note">Opens my YouTube video in a new tab, where you can leave a one-time tip with Super Thanks.</p>
       <p id="support-error" class="setting-error" role="status" aria-live="polite" aria-atomic="true"></p>
       <div class="support-dialog-actions">
-        <button id="support-cancel" type="button" autofocus>Cancel</button>
+        <button id="support-cancel" type="button" autofocus>Maybe later</button>
         <button id="support-continue" class="support-continue" type="button">Continue</button>
       </div>
     </dialog>
+    <script src="shared.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

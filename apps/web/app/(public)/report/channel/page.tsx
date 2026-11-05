@@ -1,8 +1,10 @@
+import { publicMetadata } from "@/lib/metadata";
 import { Suspense } from "react";
 import Link from "next/link";
+import { ReportFormSkeleton } from "@/components/features/loading-states";
 import { ContributionForm } from "@/components/features/contribution-form";
 
-export const metadata = { title: "Report a channel — YT Equity" };
+export const metadata = publicMetadata("Report a channel", "Submit channel ownership information or request a correction.", "/report/channel");
 type Query = { channelId?: string; contribution?: string; claimId?: string };
 async function ReportContent({
   searchParams,
@@ -36,7 +38,7 @@ export default function ChannelReportPage({
         a record. Submissions are reviewed privately before any directory
         changes are published. No sign-in is required.
       </p>
-      <Suspense fallback={<p role="status">Loading report form…</p>}>
+      <Suspense fallback={<ReportFormSkeleton />}>
         <ReportContent searchParams={searchParams} />
       </Suspense>
       <p className="mt-6 text-sm text-muted-foreground">

@@ -1,6 +1,10 @@
+import type { Metadata } from "next";
+import { privateRobots } from "@/lib/metadata";
 import Link from "next/link";
-import { Play } from "lucide-react";
+import Image from "next/image";
 import { ThemeToggle } from "@/components/features/theme-provider";
+export const metadata: Metadata = { robots: privateRobots };
+
 export default function AuthLayout({
   children,
 }: {
@@ -10,9 +14,7 @@ export default function AuthLayout({
     <div className="auth-shell min-h-dvh">
       <header className="flex h-20 items-center justify-between px-6 md:px-10">
         <Link href="/" className="flex items-center gap-2.5 font-bold">
-          <span className="brand-mark">
-            <Play size={15} fill="currentColor" />
-          </span>
+          <Image src="/brand-mark.svg" unoptimized width={32} height={32} alt="" aria-hidden="true" className="brand-mark" />
           YT Equity
         </Link>
         <ThemeToggle />

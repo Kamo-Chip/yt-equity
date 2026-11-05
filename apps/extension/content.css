@@ -203,26 +203,7 @@ html[dark] #pe-popup {
   outline: 2px solid var(--pe-link);
   outline-offset: 2px;
 }
-#pe-support-tooltip {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  box-sizing: border-box;
-  width: min(244px, calc(100vw - 56px));
-  z-index: 3;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--pe-button-background);
-  color: var(--pe-button-text);
-  font: 400 12px/18px Roboto, Arial, sans-serif;
-  text-align: center;
-  white-space: normal;
-  pointer-events: none;
-  visibility: hidden;
-}
-#pe-popup .pe-support-button:hover #pe-support-tooltip,
-#pe-popup .pe-support-button:focus-visible #pe-support-tooltip { visibility: visible; }
+
 
 #pe-popup ul li strong {
   display: flex;
@@ -265,6 +246,8 @@ html[dark] #pe-popup {
 .pe-ownership-badge {
   --pe-annotation-muted: #606060;
   --pe-annotation-text: #0f0f0f;
+  cursor: pointer;
+  text-align: left;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -313,6 +296,9 @@ html[dark] .pe-ownership-badge {
 }
 
 .pe-filter-placeholder {
+  --pe-filter-background: #fff;
+  --pe-filter-text: #0f0f0f;
+  --pe-filter-muted: #606060;
   min-height: 92px;
   width: 100%;
   display: grid;
@@ -320,28 +306,34 @@ html[dark] .pe-ownership-badge {
   align-items: center;
   gap: 10px;
   padding: 14px;
-  border: 1px solid color-mix(in srgb, var(--yt-spec-text-secondary, #606060) 24%, transparent);
+  border: 1px solid color-mix(in srgb, var(--yt-spec-text-secondary, var(--pe-filter-muted)) 24%, transparent);
   border-radius: 12px;
-  background: var(--yt-spec-raised-background, #fff);
-  color: var(--yt-spec-text-primary, #0f0f0f);
+  background: var(--yt-spec-raised-background, var(--pe-filter-background));
+  color: var(--yt-spec-text-primary, var(--pe-filter-text));
   font-family: Roboto, Arial, sans-serif;
+}
+
+html[dark] .pe-filter-placeholder {
+  --pe-filter-background: #212121;
+  --pe-filter-text: #f1f1f1;
+  --pe-filter-muted: #aaa;
 }
 
 .pe-filter-placeholder > img { border-radius: 7px; }
 .pe-filter-copy { min-width: 0; display: grid; gap: 3px; }
 .pe-filter-copy strong, .pe-filter-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pe-filter-copy strong { font-size: 13px; line-height: 18px; }
-.pe-filter-copy span { color: var(--yt-spec-text-secondary, #606060); font-size: 11px; line-height: 16px; }
+.pe-filter-copy span { color: var(--yt-spec-text-secondary, var(--pe-filter-muted)); font-size: 11px; line-height: 16px; }
 .pe-filter-placeholder button {
-  border: 1px solid color-mix(in srgb, var(--yt-spec-text-secondary, #606060) 35%, transparent);
+  border: 1px solid color-mix(in srgb, var(--yt-spec-text-secondary, var(--pe-filter-muted)) 35%, transparent);
   border-radius: 999px;
   padding: 7px 11px;
   background: transparent;
-  color: var(--yt-spec-text-primary, #0f0f0f);
+  color: var(--yt-spec-text-primary, var(--pe-filter-text));
   font: 600 12px/16px Roboto, Arial, sans-serif;
   cursor: pointer;
 }
-.pe-filter-placeholder button:hover { background: color-mix(in srgb, var(--yt-spec-text-primary, #0f0f0f) 8%, transparent); }
+.pe-filter-placeholder button:hover { background: color-mix(in srgb, var(--yt-spec-text-primary, var(--pe-filter-text)) 8%, transparent); }
 .pe-filter-placeholder button:focus-visible { outline: 2px solid #3ea6ff; outline-offset: 2px; }
 
 @media (max-width: 480px) {
@@ -408,24 +400,31 @@ html[dark] .pe-ownership-badge {
 #yt-equity-support-notice button:focus-visible { outline: 2px solid #fafafa; outline-offset: 2px; }
 
 #pe-support-dialog {
-  box-sizing: border-box; width: min(330px, calc(100vw - 32px));
-  max-height: calc(100vh - 32px); margin: auto; padding: 20px; overflow-y: auto;
-  border: 1px solid #e5e5e5; border-radius: 12px;
+  box-sizing: border-box; width: min(360px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px); margin: auto; padding: 24px; overflow-y: auto;
+  border: 1px solid #e5e5e5; border-radius: 16px;
   background: var(--yt-spec-raised-background, #fff); color: var(--yt-spec-text-primary, #171717);
   font: 13px/1.6 Roboto, Arial, sans-serif; color-scheme: light;
-  box-shadow: 0 8px 32px #0003;
+  box-shadow: 0 20px 60px #0004;
 }
 html[dark] #pe-support-dialog { background: var(--yt-spec-raised-background, #212121); color: var(--yt-spec-text-primary, #fafafa); border-color: #363636; color-scheme: dark; }
 #pe-support-dialog::backdrop { background: #0006; }
-#pe-support-dialog h2 { margin: 0 0 10px; font: 700 16px/24px Roboto, Arial, sans-serif; }
-#pe-support-dialog p { margin: 0; font: inherit; }
+#pe-support-dialog h2 { margin: 16px 0 8px; text-align: center; font: 700 20px/26px Roboto, Arial, sans-serif; letter-spacing: -.025em; }
+#pe-support-dialog p { text-align: center; margin: 0; font: inherit; }
 #pe-support-dialog .pe-support-error { color: #c5221f; }
 html[dark] #pe-support-dialog .pe-support-error { color: #f87171; }
 #pe-support-dialog .pe-support-error:not(:empty) { margin-top: 12px; }
-#pe-support-dialog .pe-support-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
-#pe-support-dialog button { min-height: 36px; padding: 8px 12px; border: 1px solid #737373; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; font: 500 13px Roboto, Arial, sans-serif; }
+#pe-support-dialog .pe-support-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
+#pe-support-dialog button { flex: 1; min-height: 38px; padding: 8px 12px; border: 1px solid #d4d4d4; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; font: 500 13px Roboto, Arial, sans-serif; }
 #pe-support-dialog button:hover { background: #8882; }
-#pe-support-dialog .pe-support-continue { background: #171717; color: #fff; border-color: #171717; }
-html[dark] #pe-support-dialog .pe-support-continue { background: #fafafa; color: #171717; border-color: #fafafa; }
+#pe-support-dialog .pe-support-continue { background: #fbbf24; color: #291800; border-color: #fbbf24; }
+#pe-support-dialog .pe-support-continue:hover { background: #f5b81b; border-color: #f5b81b; }
+html[dark] #pe-support-dialog button:not(.pe-support-continue) { border-color: #484848; }
 #pe-support-dialog button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 #pe-support-dialog button:disabled { opacity: .5; cursor: wait; }
+
+#pe-support-dialog .pe-support-dialog-icon { display: grid; margin-inline: auto; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: #f59e0b18; color: #b45309; }
+#pe-support-dialog .pe-support-dialog-icon svg { width: 22px; height: 22px; stroke-width: 1.6; }
+html[dark] #pe-support-dialog .pe-support-dialog-icon { color: #fbbf24; }
+#pe-support-dialog .pe-support-dialog-note { margin-top: 14px; color: var(--yt-spec-text-secondary, #666); font-size: 12px; line-height: 1.65; }
+html[dark] #pe-support-dialog .pe-support-dialog-note { color: var(--yt-spec-text-secondary, #aaa); }

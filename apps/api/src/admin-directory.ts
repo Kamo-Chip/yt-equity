@@ -1,4 +1,5 @@
-import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import type { FastifyInstance } from "fastify";
+import { adminRoute } from "./authorization.js";
 import { and, asc, desc, eq, ilike, count, sql } from "drizzle-orm";
 import { db } from "@yt-equity/db";
 import {
@@ -9,18 +10,11 @@ import {
   adminUsersQuerySchema,
   adminInvitationsQuerySchema,
 } from "@yt-equity/contracts";
-type Handler = (
-  request: FastifyRequest,
-  reply: FastifyReply,
-) => Promise<unknown>;
 const pattern = (q: string) => `%${q.replace(/[\\%_]/g, "\\$&")}%`;
-export function registerAdminDirectory(
-  app: FastifyInstance,
-  gate: (handler: Handler) => Handler,
-) {
+export function registerAdminDirectory(app: FastifyInstance) {
   app.get(
     "/api/v1/admin/moderators/users",
-    gate(async (request, reply) => {
+    adminRoute(async (_active, request, reply) => {
       const parsed = adminUsersQuerySchema.safeParse(request.query);
       if (!parsed.success)
         return reply
@@ -60,7 +54,7 @@ export function registerAdminDirectory(
   );
   app.get(
     "/api/v1/admin/moderators/invitations",
-    gate(async (request, reply) => {
+    adminRoute(async (_active, request, reply) => {
       const parsed = adminInvitationsQuerySchema.safeParse(request.query);
       if (!parsed.success)
         return reply

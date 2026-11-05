@@ -1,25 +1,8 @@
 import assert from "node:assert/strict";
-import { readFile, readdir } from "node:fs/promises";
-import { after, mock, test } from "node:test";
-import { PGlite } from "@electric-sql/pglite";
-import { drizzle } from "drizzle-orm/pglite";
-import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
-import * as schema from "@yt-equity/db/schema";
-
-// Real handlers and SQL against disposable Postgres; never connects to DATABASE_URL.
-process.env.NODE_ENV = "test";
-const pg = new PGlite();
-const migrations = new URL("../../../packages/db/drizzle/", import.meta.url);
-for (const file of (await readdir(migrations)).filter(file => file.endsWith(".sql")).sort()) {
-  await pg.exec(await readFile(new URL(file, migrations), "utf8"));
-}
-const db = drizzle(pg, { schema });
-mock.module("@yt-equity/db", { namedExports: { ...schema, db, and, asc, desc, eq, ilike, or } });
-mock.module("@yt-equity/db/client", { namedExports: { db, pool: { end: () => pg.close() } } });
-mock.module(new URL("../src/auth.ts", import.meta.url).href, { namedExports: { auth: {
-  api: { getSession: async ({ headers }) => headers["x-test-moderator"] ? { user: { id: "test-moderator", role: "moderator" } } : null }
-} } });
-const { app } = await import("../src/server.ts");
+import { after, test } from "node:test";
+import { eq } from "drizzle-orm";
+import { testApp } from "./helpers/app.mjs";
+const { app, pg, db, schema } = await testApp();
 const { creatorChannel, seedCreatorChannel } = await import("../../../packages/db/src/creator-channel.ts");
 after(() => app.close());
 const [firm, hiddenFirm] = await db.insert(schema.firms).values([{ name: "Public Firm" }, { name: "Hidden Firm" }]).returning();
@@ -49,17 +32,13 @@ function assertClaims(claims, ids) {
   assert.ok(claims.every(claim => claim.status === "confirmed"));
   for (const claim of claims) if (claim.sources) assert.deepEqual(claim.sources.map(source => source.url), [`https://evidence.example/${claim.id}`]);
 }
-test("profiles and directory expose only confirmed published claims and sources", async () => {
+test("profiles expose only confirmed published claims and sources", async () => {
   assertClaims((await request("/api/v1/channels/@mixed")).claims, [visible.id]);
-  const directory = await request("/api/v1/channels");
-  assert.equal(directory.length, 3);
-  for (const channel of directory) assertClaims(channel.claims, channel.channelId === mixed.channelId ? [visible.id] : []);
   for (const identifier of [hiddenOnly.channelId, empty.channelId]) {
     const channel = await request(`/api/v1/channels/${identifier}`);
     assertClaims(channel.claims, []);
     assert.equal(channel.reviewedAt, undefined);
   }
-  assert.deepEqual(await request("/api/v1/channels?firm=Hidden"), []);
 });
 test("batch lookup retains empty profiles without hidden claims", async () => {
   const { results } = await request("/api/v1/channels/lookup", { method: "POST", payload: { identifiers: ["@mixed", "@hidden", "@empty", "@missing"] } });
@@ -80,17 +59,15 @@ test("firm profiles preserve firms with no public records", async () => {
   assert.equal(hidden.name, "Hidden Firm");
   assertClaims(hidden.claims, []);
 });
-test("legacy nonconfirmed filters return empty results", async () => {
+test("nonconfirmed graph filters return empty results", async () => {
   for (const status of ["provisional", "disputed"]) {
-    assert.deepEqual(await request(`/api/v1/channels?status=${status}`), []);
     assert.deepEqual(await request(`/api/v1/ownership-graph?status=${status}`), { nodes: [], edges: [] });
   }
-  assert.equal((await request("/api/v1/channels?status=confirmed")).length, 1);
 });
 test("moderators retain all statuses and publication states", async () => {
-  const rows = await request("/api/v1/moderator/claims", { headers: { "x-test-moderator": "yes" } });
-  assert.deepEqual(rows.map(row => row.claim.id).sort(), records.map(record => record.id).sort());
-  assert.equal((await app.inject({ url: "/api/v1/moderator/claims" })).statusCode, 401);
+  const rows = await request("/api/v1/moderator/directory?resource=relationships", { headers: { "x-test-role": "moderator" } });
+  assert.deepEqual(rows.items.map(row => row.id).sort(), records.map(record => record.id).sort());
+  assert.equal((await app.inject({ url: "/api/v1/moderator/directory?resource=relationships" })).statusCode, 401);
 });
 test("dispute submission preserves the claim; moderator status change hides it", async () => {
   const response = await app.inject({ method: "POST", url: "/api/v1/submissions", payload: {
@@ -99,7 +76,7 @@ test("dispute submission preserves the claim; moderator status change hides it",
   } });
   assert.equal(response.statusCode, 201, response.body);
   assertClaims((await request(`/api/v1/channels/${mixed.channelId}`)).claims, [visible.id]);
-  await request(`/api/v1/moderator/claims/${visible.id}`, { method: "PATCH", headers: { "x-test-moderator": "yes" }, payload: { status: "disputed" } });
+  await request(`/api/v1/moderator/relationships/${visible.id}`, { method: "PATCH", headers: { "x-test-role": "moderator" }, payload: { channel: { id: mixed.id }, firm: { id: firm.id }, type: "acquisition", status: "disputed", published: false, confidence: 100, sources: [{ url: `https://evidence.example/${visible.id}`, tier: "official" }] } });
   assertClaims((await request(`/api/v1/channels/${mixed.channelId}`)).claims, []);
   assert.deepEqual(await request("/api/v1/ownership-graph"), { nodes: [], edges: [] });
 });

@@ -8,6 +8,7 @@ const production = {
   DATABASE_URL: "postgresql://user:private-password@db.example.com/db?sslmode=require",
   WEB_ORIGIN: "https://www.ytequity.com",
   BETTER_AUTH_URL: "https://www.ytequity.com",
+  API_PROXY_SECRET: "separate-persistent-proxy-secret-32-characters-long",
   BETTER_AUTH_SECRET: "a-persistent-production-secret-32-characters-long",
   RESEND_API_KEY: "private-email-key",
   RESEND_FROM: "YT Equity <hello@mail.ytequity.com>",
@@ -21,7 +22,7 @@ test("private HTTP upstream and public HTTPS auth origin pass production validat
 });
 
 test("production cannot silently fall back to localhost or missing email delivery", () => {
-  for (const key of ["WEB_ORIGIN", "BETTER_AUTH_URL", "RESEND_API_KEY", "RESEND_FROM", "DATABASE_URL", "BETTER_AUTH_SECRET"]) {
+  for (const key of ["API_PROXY_SECRET", "WEB_ORIGIN", "BETTER_AUTH_URL", "RESEND_API_KEY", "RESEND_FROM", "DATABASE_URL", "BETTER_AUTH_SECRET"]) {
     assert.throws(() => validateEnvironment("api", { ...production, [key]: "" }), new RegExp(key));
   }
   assert.throws(() => validateEnvironment("web", { ...production, API_INTERNAL_URL: "" }), /API_INTERNAL_URL/);
@@ -42,4 +43,11 @@ test("CLI rejects malformed private URL without leaking credentials", () => {
   assert.equal(result.status, 1);
   assert.match(result.stderr, /API_INTERNAL_URL/);
   assert.doesNotMatch(result.stderr, /private-password|private-email-key/);
+});
+
+test("both services require a strong independent proxy key", () => {
+  for (const service of ["api", "web"]) {
+    for (const value of ["", "short", "replace-with-a-separate-long-random-secret"])
+      assert.throws(() => validateEnvironment(service, { ...production, API_PROXY_SECRET: value }), /API_PROXY_SECRET/);
+  }
 });

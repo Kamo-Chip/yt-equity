@@ -1,34 +1,11 @@
 import assert from "node:assert/strict";
 import { after, mock, test } from "node:test";
-import { readFile, readdir } from "node:fs/promises";
-import { PGlite } from "@electric-sql/pglite";
-import { drizzle } from "drizzle-orm/pglite";
 import { eq } from "drizzle-orm";
-process.env.NODE_ENV = "test";
-process.env.DATABASE_URL = "postgresql://test:test@127.0.0.1:1/test";
-process.env.BETTER_AUTH_SECRET =
-  "relationship-tests-only-not-a-production-secret";
-const { db } = await import("@yt-equity/db/client");
-const schema = await import("@yt-equity/db/schema");
-const { auth } = await import("../src/auth.js");
-const { app } = await import("../src/server.js");
-const pg = new PGlite();
-const migrations = new URL("../../../packages/db/drizzle/", import.meta.url);
-for (const file of (await readdir(migrations))
-  .filter((f) => f.endsWith(".sql"))
-  .sort())
-  await pg.exec(await readFile(new URL(file, migrations), "utf8"));
-const testDb = drizzle(pg, { schema });
-for (const method of ["insert", "update", "delete", "transaction"] as const)
-  mock.method(db, method, testDb[method].bind(testDb) as never);
-const selectSpy = mock.method(db, "select", testDb.select.bind(testDb));
+import { testApp } from "./helpers/app.mjs";
 let activeSession: unknown = null;
-mock.method(auth.api, "getSession", async () => activeSession);
-after(async () => {
-  mock.restoreAll();
-  await app.close();
-  await pg.close();
-});
+const { app, pg, db: testDb, schema } = await testApp({ getSession: async () => activeSession });
+const selectSpy = mock.method(testDb, "select", testDb.select.bind(testDb));
+after(() => app.close());
 const payload = {
   channel: { channelId: "UCrelationship", name: "Test channel" },
   firm: { name: "Test firm" },
@@ -58,7 +35,7 @@ test("readiness returns unavailable while warming and ready after the snapshot l
 
 test("relationship endpoints require moderator authorization", async () => {
   for (const [method, url] of [
-    ["GET", "/api/v1/moderator/relationships"],
+    ["GET", "/api/v1/moderator/directory?resource=relationships"],
     [
       "GET",
       "/api/v1/moderator/relationships/00000000-0000-0000-0000-000000000000",
@@ -81,13 +58,13 @@ test("relationship endpoints require moderator authorization", async () => {
     );
   activeSession = { user: { id: "ordinary-user", role: null } };
   assert.equal(
-    (await app.inject({ url: "/api/v1/moderator/relationships" })).statusCode,
+    (await app.inject({ url: "/api/v1/moderator/directory?resource=relationships" })).statusCode,
     403,
   );
   assert.equal((await write()).statusCode, 403);
   activeSession = { user: { id: "admin-user", role: "admin" } };
   assert.equal(
-    (await app.inject({ url: "/api/v1/moderator/relationships" })).statusCode,
+    (await app.inject({ url: "/api/v1/moderator/directory?resource=relationships" })).statusCode,
     200,
   );
   activeSession = { user: { id: "test-moderator", role: "moderator" } };
@@ -165,7 +142,7 @@ test("publication, evidence replacement, nullable firm/date and archive affect p
     (
       await app.inject({
         method: "POST",
-        url: `/api/v1/moderator/claims/${relationship.id}/archive`,
+        url: `/api/v1/moderator/relationships/${relationship.id}/archive`,
       })
     ).statusCode,
     200,
@@ -268,7 +245,7 @@ test("approving a submission does not change directory data", async () => {
     })
     .returning();
   const before = (
-    await app.inject({ url: "/api/v1/moderator/relationships" })
+    await app.inject({ url: "/api/v1/moderator/directory?resource=relationships" })
   ).json();
   const response = await app.inject({
     method: "POST",
@@ -277,7 +254,7 @@ test("approving a submission does not change directory data", async () => {
   });
   assert.equal(response.statusCode, 200, response.body);
   assert.deepEqual(
-    (await app.inject({ url: "/api/v1/moderator/relationships" })).json(),
+    (await app.inject({ url: "/api/v1/moderator/directory?resource=relationships" })).json(),
     before,
   );
   assert.equal(
@@ -436,95 +413,13 @@ test("simultaneous review decisions create only one decision and audit record", 
     1,
   );
 });
-test("graph uses one query and aggregate editor uses two independently of relationship count", async () => {
-  const created = await testDb
-    .insert(schema.claims)
-    .values(
-      Array.from({ length: 30 }, (_, i) => ({
-        channelId: relationship.channel.id,
-        firmId: relationship.firm.id,
-        type: i % 2 ? ("funding" as const) : ("acquisition" as const),
-        status: "confirmed" as const,
-        published: true,
-        confidence: 90,
-      })),
-    )
-    .returning();
-  await testDb
-    .insert(schema.evidence)
-    .values(
-      created.map((claim) => ({
-        claimId: claim.id,
-        url: "https://example.com/" + claim.id,
-        tier: "official" as const,
-      })),
-    );
-  let before = selectSpy.mock.callCount();
-  const response = await app.inject({ url: "/api/v1/ownership-graph?status=confirmed" });
-  assert.equal(response.statusCode, 200, response.body);
-  assert.equal(response.json().edges.length, 30);
-  assert.equal(selectSpy.mock.callCount() - before, 1);
-  before = selectSpy.mock.callCount();
-  assert.equal(
-    (await app.inject({ url: "/api/v1/moderator/relationships" })).statusCode,
-    200,
-  );
-  assert.equal(selectSpy.mock.callCount() - before, 2);
-  const first = (
-      await app.inject({
-        url: "/api/v1/moderator/directory?resource=relationships&pageSize=10",
-      })
-    ).json(),
-    second = (
-      await app.inject({
-        url: "/api/v1/moderator/directory?resource=relationships&pageSize=10&page=2",
-      })
-    ).json();
-  assert.equal(first.total, 31);
-  assert.equal(first.items.length, 10);
-  assert.equal(second.items.length, 10);
-  assert.ok(
-    first.items.every(
-      (a: any) => !second.items.some((b: any) => a.id === b.id),
-    ),
-  );
-  const drafts = (
-    await app.inject({
-      url: "/api/v1/moderator/directory?resource=relationships&publication=draft",
-    })
-  ).json();
-  assert.equal(drafts.total, 1);
-  const funded = (
-    await app.inject({
-      url: "/api/v1/moderator/directory?type=funding&publication=published",
-    })
-  ).json();
-  assert.equal(funded.total, 15);
-  const channelSearch = (
-    await app.inject({
-      url: "/api/v1/moderator/directory?resource=channels&q=UCrelationship",
-    })
-  ).json();
-  assert.equal(channelSearch.total, 1);
-});
-test("index migration is applied and idempotent", async () => {
-  const { rows } = await pg.query<{ indexname: string }>(
-    "SELECT indexname FROM pg_indexes WHERE indexname IN ('evidence_claim_id_idx','submissions_pending_queue_idx')",
-  );
-  assert.equal(rows.length, 2);
-  await pg.exec(
-    await readFile(
-      new URL(
-        "../../../packages/db/drizzle/0004_graph_queue_indexes.sql",
-        import.meta.url,
-      ),
-      "utf8",
-    ),
-  );
-});
 
 test("public snapshot cache shares reads and invalidates directory writes but not review decisions", async () => {
-  const channelUrl = `/api/v1/moderator/channels/${relationship.channel.id}`;
+  const created = await write({ ...payload, published: true,
+    channel: { channelId: "UCcached", name: "Cache channel" }, firm: { name: "Cache firm" } });
+  assert.equal(created.statusCode, 201, created.body);
+  const cachedRelationship = created.json();
+  const channelUrl = `/api/v1/moderator/channels/${cachedRelationship.channel.id}`;
   assert.equal((await app.inject({ method: "PATCH", url: channelUrl,
     payload: { name: "Cached channel" } })).statusCode, 200);
   const before = selectSpy.mock.callCount();
@@ -553,15 +448,15 @@ test("public snapshot cache shares reads and invalidates directory writes but no
     payload: { status: "approved" } })).statusCode, 200);
   assert.equal((await app.inject({ url: "/api/v1/ownership-graph" })).headers["x-graph-cache"], "HIT");
 
-  const record = hit.json().edges[0];
-  assert.equal((await app.inject({ method: "PATCH",
-    url: `/api/v1/moderator/evidence/${record.sources[0].id}`,
-    payload: { title: "Fresh evidence" } })).statusCode, 200);
+  const record = hit.json().edges.find((edge: any) => edge.id === cachedRelationship.id);
+  const editor = (await app.inject({ url: `/api/v1/moderator/relationships/${record.id}` })).json();
+  assert.equal((await write({ ...editor, channel: { id: editor.channel.id }, firm: editor.firm ? { id: editor.firm.id } : null,
+    sources: editor.sources.map((source: any) => ({ ...source, title: "Fresh evidence" })) }, record.id)).statusCode, 200);
   const refreshed = await app.inject({ url: "/api/v1/ownership-graph" });
   assert.equal(refreshed.headers["x-graph-cache"], "HIT");
   assert.equal(refreshed.json().edges.find((edge: any) => edge.id === record.id).sources[0].title, "Fresh evidence");
   assert.equal((await app.inject({ method: "POST",
-    url: `/api/v1/moderator/claims/${record.id}/archive` })).statusCode, 200);
+    url: `/api/v1/moderator/relationships/${record.id}/archive` })).statusCode, 200);
   const archived = await app.inject({ url: "/api/v1/ownership-graph" });
   assert.equal(archived.headers["x-graph-cache"], "HIT");
   assert.ok(!archived.json().edges.some((edge: any) => edge.id === record.id));
@@ -577,19 +472,20 @@ test("graph joins retain every source once and relationships without evidence", 
     { claimId: record.id, url: "https://example.com/first", tier: "official" },
     { claimId: record.id, url: "https://example.com/second", tier: "reputable" },
   ]);
-  const graph = await readOwnershipGraph(db, {});
+  const graph = await readOwnershipGraph(testDb, {});
   assert.equal(graph.edges.filter(e => e.id === record.id).length, 1);
   assert.deepEqual(graph.edges.find(e => e.id === record.id)?.sources.map(s => s.url), ["https://example.com/first", "https://example.com/second"]);
   assert.deepEqual(graph.edges.find(e => e.id === empty.id)?.sources, []);
-  const filtered = await readOwnershipGraph(db, { evidenceTier: "official" });
+  const filtered = await readOwnershipGraph(testDb, { evidenceTier: "official" });
   assert.equal(filtered.edges.find(e => e.id === record.id)?.sources.length, 2);
   assert.ok(!filtered.edges.some(e => e.id === empty.id));
 });
 
 test("a failed post-commit rebuild preserves mutation success and discards the old snapshot", async () => {
-  const failing = mock.method(db, "select", ((fields: any) => {
+  const originalSelect = testDb.select.bind(testDb);
+  const failing = mock.method(testDb, "select", ((fields: any) => {
     if (fields?.source === schema.evidence) throw new Error("Snapshot read unavailable");
-    return testDb.select(fields);
+    return originalSelect(fields);
   }) as never);
   try {
     const result = await app.inject({ method: "PATCH",

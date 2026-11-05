@@ -2,6 +2,7 @@ packages:
   - apps/*
   - packages/*
 allowBuilds:
+  workerd: true
   esbuild: false
 minimumReleaseAgeExclude:
   - '@next/env@16.4.5'

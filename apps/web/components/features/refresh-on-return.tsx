@@ -2,7 +2,6 @@
 import { useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-/** Event-driven refresh only: no polling or refresh when a tab is hidden. */
 export function RefreshOnReturn() {
   const router = useRouter(), last = useRef(0);
   const [, startTransition] = useTransition();

@@ -1,7 +1,7 @@
+import type { OwnershipGraph,OwnershipGraphQuery } from "@yt-equity/contracts";
 import type { db as database } from "@yt-equity/db";
-import { and, eq, ilike, or, asc } from "drizzle-orm";
-import { channels, claims, evidence, firms } from "@yt-equity/db/schema";
-import type { OwnershipGraph, OwnershipGraphQuery } from "@yt-equity/contracts";
+import { channels,claims,evidence,firms } from "@yt-equity/db/schema";
+import { and,asc,eq,ilike,or } from "drizzle-orm";
 export async function readOwnershipGraph(
   db: typeof database,
   query: OwnershipGraphQuery,
@@ -15,7 +15,7 @@ export async function readOwnershipGraph(
     .select({ claim: claims, channel: channels, firm: firms, source: evidence })
     .from(claims)
     .innerJoin(channels, eq(claims.channelId, channels.id))
-    .innerJoin(firms, eq(claims.firmId, firms.id))
+    .leftJoin(firms, eq(claims.firmId, firms.id))
     .leftJoin(evidence, eq(evidence.claimId, claims.id))
     .where(
       and(
@@ -51,8 +51,14 @@ export async function readOwnershipGraph(
         !query.evidenceTier ||
         r.sources.some((s) => s.tier === query.evidenceTier),
     );
-  const uniqueFirms = new Map(records.map((r) => [r.firm.id, r.firm]));
-  const uniqueChannels = new Map(records.map((r) => [r.channel.id, r.channel]));
+  const graphRecords = records.map(record => ({
+    ...record,
+    firm: record.firm ? { ...record.firm, undisclosed: false } : {
+      id: `undisclosed:${record.claim.id}`, name: "Undisclosed firm", website: null, profilePictureUrl: null, profilePictureBackground: null, undisclosed: true,
+    },
+  }));
+  const uniqueFirms = new Map(graphRecords.map((r) => [r.firm.id, r.firm]));
+  const uniqueChannels = new Map(graphRecords.map((r) => [r.channel.id, r.channel]));
   return {
     nodes: [
       ...[...uniqueFirms.values()].map((f) => ({
@@ -60,8 +66,11 @@ export async function readOwnershipGraph(
         kind: "firm" as const,
         name: f.name,
         website: f.website ?? undefined,
+        profilePictureUrl: f.profilePictureUrl ?? undefined,
+        profilePictureBackground: f.profilePictureBackground ?? undefined,
+        ...(f.undisclosed ? { undisclosed: true } : {}),
         channelCount: new Set(
-          records.filter((r) => r.firm.id === f.id).map((r) => r.channel.id),
+          graphRecords.filter((r) => r.firm.id === f.id).map((r) => r.channel.id),
         ).size,
       })),
       ...[...uniqueChannels.values()].map((c) => ({
@@ -73,7 +82,7 @@ export async function readOwnershipGraph(
         profilePictureUrl: c.profilePictureUrl ?? undefined,
       })),
     ],
-    edges: records.map((r) => ({
+    edges: graphRecords.map((r) => ({
       id: r.claim.id,
       source: `firm:${r.firm.id}`,
       target: `channel:${r.channel.id}`,

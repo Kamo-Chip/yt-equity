@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import {
   ModeratorWorkspace,
@@ -6,6 +7,8 @@ import {
 import { ModeratorPageSkeleton } from "@/components/features/loading-states";
 // Authorization can redirect before this page is allowed to render.
 export const instant = false;
+export const metadata: Metadata = { title: "Moderator workspace" };
+
 export default function ModeratorPage({
   searchParams,
 }: {

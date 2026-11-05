@@ -19,13 +19,13 @@ export class RelationshipError extends Error {
     super(message);
   }
 }
-export async function readRelationships(db: typeof database, id?: string) {
+export async function readRelationships(db: typeof database, id: string) {
   const rows = await db
     .select({ claim: claims, channel: channels, firm: firms })
     .from(claims)
     .innerJoin(channels, eq(claims.channelId, channels.id))
     .leftJoin(firms, eq(claims.firmId, firms.id))
-    .where(id ? eq(claims.id, id) : undefined)
+    .where(eq(claims.id, id))
     .orderBy(desc(claims.createdAt));
   const grouped = await evidenceForClaims(
     db,

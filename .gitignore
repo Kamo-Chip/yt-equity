@@ -10,3 +10,6 @@ dist/
 .next-*/
 playwright-report/
 test-results/
+
+# Store screenshots and QA deliverables are maintained outside the repository.
+/apps/extension/store-assets/

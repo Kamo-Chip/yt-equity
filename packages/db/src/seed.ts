@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { and, db, eq } from "@yt-equity/db";
 import { channels, firms, claims, evidence } from "@yt-equity/db/schema";
 
-const file = new URL("../../../apps/extension/data/channels.json", import.meta.url);
+const file = new URL("../data/channels.json", import.meta.url);
 const seed = JSON.parse(await readFile(file, "utf8")) as { channels: Array<Record<string, string>> };
 const items = seed.channels;
 console.log(`Seeding ${items.length} channels...`);

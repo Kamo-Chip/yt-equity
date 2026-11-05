@@ -1,8 +1,9 @@
+import { publicMetadata } from "@/lib/metadata";
 import Link from "next/link";
 import styles from "./report.module.css";
 import { ReportForm } from "@/components/features/report-form";
 
-export const metadata = { title: "Report an issue — YT Equity" };
+export const metadata = publicMetadata("Report an issue", "Report a problem or suggest an improvement to YT Equity.", "/report");
 
 export default function ReportPage() {
   return (

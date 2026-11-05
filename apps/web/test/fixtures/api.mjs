@@ -134,10 +134,13 @@ createServer(async (req, res) => {
   let result,
     status = 200;
   if (!path.startsWith("/__"))
-    requests.push({ path, search: url.search, method: req.method, hasCookie: Boolean(req.headers.cookie), ...(["/api/v1/submissions", "/api/v1/reports"].includes(path) ? { data } : {}) });
+    requests.push({ path, search: url.search, method: req.method, hasCookie: Boolean(req.headers.cookie), ...(["/api/v1/submissions", "/api/v1/reports"].includes(path) ? { data, clientKey: (req.headers["x-yt-equity-client"] ?? "").split(".")[0], signedClient: /^(?:[0-9a-f-]{36}|[0-9a-f]{64})\.\d+\.[0-9a-f]{64}$/i.test(req.headers["x-yt-equity-client"] ?? "") } : {}) });
   if (responseDelays.has(path)) await new Promise(resolve => setTimeout(resolve, responseDelays.get(path)));
   if (path === "/__reset") {
     reset();
+    result = { ok: true };
+  } else if (path === "/__empty-graph") {
+    relationships = [];
     result = { ok: true };
   } else if (path === "/__admin-data") { users = data.users ?? users; invitations = data.invitations ?? invitations; result = { ok: true };
   } else if (path === "/__activity") { activity = data.items; result = { ok: true };
@@ -152,16 +155,17 @@ createServer(async (req, res) => {
     else graphDelay = Math.min(Number(data.ms) || 0, 5000);
     result = { ok: true };
   } else if (path === "/__many") {
-    for (let i = 0; i < (data.channels ?? 0); i++)
+    for (let i = 0; i < (data.firms ?? 0); i++) {
+      const extraFirm = { id: randomUUID(), name: "Fixture firm " + i };
+      firms.push(extraFirm);
+      relationships.push({ ...seedRelationships[0], id: randomUUID(), firm: extraFirm });
+    }
+    for (let i = 0; i < (data.undisclosed ?? 0); i++)
+      relationships.push({ ...seedRelationships[0], id: randomUUID(), firm: null });
+    for (let i = 0; i < (data.otherChannels ?? 0); i++)
       relationships.push({
-        ...seedRelationships[0],
-        id: randomUUID(),
-        channel: {
-          ...channel,
-          id: randomUUID(),
-          channelId: "UCdense" + i,
-          name: "Dense channel " + i,
-        },
+        ...seedRelationships[1], id: randomUUID(),
+        channel: { ...channel, id: randomUUID(), channelId: "UCother" + i, handle: "@other" + i, name: "Other channel " + i },
       });
     for (let i = 0; i < (data.reports ?? 0); i++)
       queue.push({
@@ -287,10 +291,14 @@ createServer(async (req, res) => {
     }
     result = { resource, ...pageResult(items, params) };
   } else if (path === "/api/v1/moderator/audit-events") result = activity;
-  else if (path.startsWith("/api/v1/moderator/relationships")) {
+  else if (/^\/api\/v1\/moderator\/relationships\/[^/]+\/archive$/.test(path) && req.method === "POST") {
+    const record = relationships.find(record => record.id === path.split("/")[5]);
+    if (record) { record.published = false; result = { ok: true }; }
+    else { status = 404; result = { error: { message: "Relationship not found" } }; }
+  } else if (path.startsWith("/api/v1/moderator/relationships")) {
     const id = path.split("/")[5];
     if (req.method === "GET") {
-      result = id ? relationships.find((r) => r.id === id) : relationships;
+      result = id ? relationships.find((r) => r.id === id) : undefined;
       if (!result) {
         status = 404;
         result = { error: { message: "Relationship not found" } };
@@ -313,17 +321,11 @@ createServer(async (req, res) => {
         ...relationships.filter((r) => r.id !== result.id),
       ];
     }
-  } else if (path.endsWith("/archive")) {
-    const r = relationships.find((r) => r.id === path.split("/")[5]);
-    if (r) r.published = false;
-    result = { ok: true };
   } else if (path.startsWith("/api/v1/moderator/channels/") && req.method === "PATCH") {
     result = channels.find(c => c.id === path.split("/")[5]);
     if (result) Object.assign(result, data);
     else { status = 404; result = { error: { message: "Channel not found" } }; }
-  } else if (path === "/api/v1/moderator/channels") result = channels;
-  else if (path === "/api/v1/moderator/firms") result = firms;
-  else if (req.method === "GET" && ["/api/v1/admin/moderators/users", "/api/v1/admin/moderators/invitations"].includes(path)) {
+  } else if (req.method === "GET" && ["/api/v1/admin/moderators/users", "/api/v1/admin/moderators/invitations"].includes(path)) {
     const isUsers = path.endsWith("/users"), q = (params.get("q") ?? "").toLowerCase();
     let items = isUsers ? users.filter(person => person.role === "moderator") : invitations.map(invitation => ({ ...invitation, status: invitation.acceptedAt ? "accepted" : invitation.revokedAt ? "revoked" : new Date(invitation.expiresAt) <= new Date() ? "expired" : "pending" }));
     items = items.filter(item => item.email.toLowerCase().includes(q) && (isUsers || !params.get("status") || params.get("status") === "all" || item.status === params.get("status")));
@@ -331,7 +333,6 @@ createServer(async (req, res) => {
     items.sort((a, b) => a[sort] == null ? b[sort] == null ? a.id.localeCompare(b.id) : 1 : b[sort] == null ? -1 : direction * String(a[sort]).localeCompare(String(b[sort])) || a.id.localeCompare(b.id));
     result = pageResult(items, params);
   }
-  else if (path === "/api/v1/admin/moderators") result = { users, invitations };
   else if (path === "/api/v1/admin/moderators/invitations") {
     result = { id: "test-invitation-" + data.email, email: data.email, expiresAt: "2027-01-01T00:00:00Z", acceptedAt: null, revokedAt: null, lastSentAt: new Date().toISOString(), createdAt: new Date().toISOString() };
     invitations = [result, ...invitations.filter(i => i.email !== data.email)];
@@ -348,8 +349,8 @@ createServer(async (req, res) => {
     if (graphDelay)
       await new Promise((resolve) => setTimeout(resolve, graphDelay));
     const records = relationships.filter(
-      (r) => r.published && r.status === "confirmed" && r.firm,
-    );
+      (r) => r.published && r.status === "confirmed",
+    ).map(record => ({ ...record, firm: record.firm ?? { id: `undisclosed:${record.id}`, name: "Undisclosed firm", undisclosed: true } }));
     result = {
       nodes: [
         ...new Map(
@@ -359,6 +360,9 @@ createServer(async (req, res) => {
               id: "firm:" + r.firm.id,
               kind: "firm",
               name: r.firm.name,
+              profilePictureUrl: r.firm.profilePictureUrl,
+              profilePictureBackground: r.firm.profilePictureBackground,
+              ...(r.firm.undisclosed ? { undisclosed: true } : {}),
               channelCount: new Set(
                 records
                   .filter((other) => other.firm.id === r.firm.id)
@@ -384,7 +388,7 @@ createServer(async (req, res) => {
   } else if (["/api/v1/submissions", "/api/v1/reports", "/api/auth/sign-in/magic-link"].includes(path) && req.method === "POST") {
     result = { ok: true };
   } else if (["/api/v1/channels/UCtest", "/api/v1/channels/%40test"].includes(path))
-    result = { ...channel, aliases: [], claims: relationships.filter(r => r.published && r.status === "confirmed") };
+    result = { ...channels[0], aliases: [], claims: relationships.filter(r => r.published && r.status === "confirmed") };
   else {
     status = 404;
     result = { error: { message: "Fixture route not found" } };

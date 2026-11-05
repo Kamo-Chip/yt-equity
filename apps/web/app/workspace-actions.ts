@@ -2,7 +2,8 @@
 
 import { headers } from "next/headers";
 import { revalidatePath, updateTag } from "next/cache";
-import { apiFetch, ApiError } from "@/lib/api";
+import { serverFetch } from "@/lib/server-api";
+import { ApiError } from "@/lib/http";
 import { changesPublicDirectory, PUBLIC_DIRECTORY_TAG } from "@/lib/cache-policy";
 
 export async function workspaceMutation(
@@ -17,7 +18,7 @@ export async function workspaceMutation(
     return { ok: false as const, error: { status: 400, code: "INVALID_ACTION", message: "Invalid workspace action." } };
   try {
     const requestHeaders = await headers();
-    const data = await apiFetch<unknown>(path, {
+    const data = await serverFetch<unknown>(path, {
       method,
       headers: {
         cookie: requestHeaders.get("cookie") ?? "",

@@ -1,11 +1,26 @@
+import type { Metadata } from "next";
+import { publicMetadata, privateRobots } from "@/lib/metadata";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { getPublicFirm } from "@/lib/public-data";
-import { firmLogo } from "@/components/features/firm-logos";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { OwnershipEvidence } from "@/components/features/ownership-evidence";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+export async function generateMetadata({ params }: {
+  params: Promise<{ firmId: string }>;
+}): Promise<Metadata> {
+  const { firmId } = await params;
+  const entity = await getPublicFirm(firmId);
+  if (!entity) return { title: "Firm not found", robots: privateRobots };
+  return publicMetadata(
+    entity.name,
+    `Research ${entity.name}’s YouTube channel investments and ownership records.`,
+    `/firms/${encodeURIComponent(entity.id)}`,
+  );
+}
+
 export default async function FirmPage({
   params,
 }: {
@@ -22,13 +37,12 @@ export default async function FirmPage({
           Ownership graph
         </Link>
       </Button>
-      <div className="mb-8 flex items-center gap-4">
-        <img
-          src={firmLogo(firm.name)}
-          alt=""
-          className="size-16 rounded-full border object-contain p-2"
-        />
-        <div>
+      <div className="profile-identity mb-8 flex items-center gap-4">
+        <Avatar className="size-16 border">
+          <AvatarImage src={firm.profilePictureUrl} alt="" style={{ background: firm.profilePictureBackground }} className="object-contain p-2" />
+          <AvatarFallback className="text-xl font-semibold">{firm.name[0]}</AvatarFallback>
+        </Avatar>
+        <div className="min-w-0">
           <p className="text-xs text-muted-foreground">Investment firm</p>
           <h1 className="!mb-2">{firm.name}</h1>
           {firm.website && (
@@ -44,13 +58,14 @@ export default async function FirmPage({
           )}
         </div>
       </div>
-      <h2 className="mb-4">Published channel records</h2>
+      <h2 className="mb-4">Channel records</h2>
       <div className="grid gap-4">
         {firm.claims.length ? (
           firm.claims.map((claim) => (
             <Card key={claim.id} className="shadow-none">
               <CardHeader>
                 <CardTitle className="text-base">
+                  {claim.type === "funding" ? "Funded" : "Acquired"}{" "}
                   <Link
                     href={"/channels/" + claim.channel.channelId}
                     className="hover:underline"
@@ -58,31 +73,9 @@ export default async function FirmPage({
                     {claim.channel.name}
                   </Link>
                 </CardTitle>
-                <div className="flex gap-2 pt-1">
-                  <Badge variant="secondary">
-                    {claim.type === "acquisition" ? "Acquisition" : "Funding"}
-                  </Badge>
-                  <Badge variant="outline">{claim.status}</Badge>
-                </div>
               </CardHeader>
               <CardContent>
-                <p className="mb-3 text-sm text-muted-foreground">
-                  {claim.confidence}% confidence
-                </p>
-                <ul className="grid gap-2">
-                  {claim.sources.map((source) => (
-                    <li key={source.url}>
-                      <a
-                        href={source.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="break-words text-sm text-blue-700 dark:text-blue-400 hover:underline"
-                      >
-                        {source.title ?? source.publisher ?? source.url} ↗
-                      </a>
-                    </li>
-                  ))}
-                </ul>
+                <OwnershipEvidence record={claim} />
               </CardContent>
             </Card>
           ))

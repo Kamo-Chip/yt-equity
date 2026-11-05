@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 
-const source = await readFile(new URL("../background.js", import.meta.url), "utf8");
+const shared = await readFile(new URL("../shared.js", import.meta.url), "utf8");
+const source = shared + await readFile(new URL("../background.js", import.meta.url), "utf8");
 function environment({ firefox = false, enabled = true, failStorage = false, fetcher, saved = { ownershipLookupsEnabled: enabled } } = {}) {
   let listener, changed, installed;
   let now = 1000;
@@ -42,7 +43,7 @@ function environment({ firefox = false, enabled = true, failStorage = false, fet
   };
   const config = 'globalThis.YT_EQUITY_CONFIG = {apiUrl:"https://api.ytequity.com"};';
   if (firefox) runInNewContext(config, context); // This deliberately has no importScripts shim.
-  else context.importScripts = path => { assert.equal(path, "config.js"); runInNewContext(config, context); };
+  else context.importScripts = (...paths) => { assert.deepEqual(paths, ["config.js", "shared.js"]); runInNewContext(config, context); };
   runInNewContext(source, context);
   return {
     opened,
@@ -125,3 +126,16 @@ for (const enabled of [true, false]) {
     }
   });
 }
+
+test("one invalid lookup result does not suppress or cache-fail its valid siblings", async () => {
+  const env = environment({ fetcher: async (_url, options) => ({ ok: true, json: async () => ({
+    results: JSON.parse(options.body).identifiers.map(identifier => identifier === "bad/identifier"
+      ? { identifier, channel: null, error: { code: "INVALID_IDENTIFIER" } }
+      : { identifier, channel: { channelId: "UCalpha", name: "Alpha", claims: [] } }),
+  }) }) });
+  const results = await env.send({ type: "yt-equity:lookup-many", identifiers: ["@café", "bad/identifier"] });
+  assert.equal(results[0].result.kind, "found");
+  assert.equal(results[1].result.kind, "unavailable");
+  assert.equal((await env.send({ type: "yt-equity:lookup", identifier: "@café" })).kind, "found");
+  assert.equal(env.requests, 1);
+});

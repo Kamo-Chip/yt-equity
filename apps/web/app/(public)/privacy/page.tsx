@@ -1,9 +1,7 @@
+import { publicMetadata } from "@/lib/metadata";
 import Link from "next/link";
 
-export const metadata = {
-  title: "Extension privacy policy — YT Equity",
-  description: "How the YT Equity browser extension handles channel lookups and local preferences.",
-};
+export const metadata = publicMetadata("Extension privacy policy", "How the YT Equity browser extension handles channel lookups and local preferences.", "/privacy");
 
 export default function PrivacyPage() {
   return (

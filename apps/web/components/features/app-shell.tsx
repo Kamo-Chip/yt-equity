@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
@@ -8,7 +9,6 @@ import {
   Library,
   History,
   Users,
-  Play,
   Search,
   Flag,
   Bug,
@@ -34,6 +34,16 @@ import {
 import { ThemeToggle } from "./theme-provider";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { apiFetch } from "@/lib/api";
 import { toast } from "sonner";
 type NavLink = {
@@ -79,6 +89,7 @@ function ShellContent({
   role?: "moderator" | "admin";
 }) {
   const [signingOut, setSigningOut] = useState(false);
+  const supportCancelRef = useRef<HTMLButtonElement>(null);
   const { state, isMobile } = useSidebar();
   const workspace = variant === "workspace";
   async function signOut() {
@@ -101,15 +112,13 @@ function ShellContent({
 
   return (
     <>
-      <header className="app-header flex shrink-0 items-center gap-3 px-4 md:px-6">
+      <header className={`app-header flex shrink-0 items-center gap-3 px-4 md:px-6${workspace ? "" : " public-header"}`}>
         <SidebarTrigger className="md:hidden" />
         <Link
           href={workspace ? "/moderator" : "/"}
           className="flex shrink-0 items-center gap-2 font-bold tracking-tight"
         >
-          <span className="brand-mark">
-            <Play size={14} fill="currentColor" />
-          </span>
+          <Image src="/brand-mark.svg" unoptimized width={32} height={32} alt="" aria-hidden="true" className="brand-mark" />
           YT Equity
         </Link>
         {workspace ? (
@@ -119,7 +128,7 @@ function ShellContent({
         ) : (
           <Suspense
             fallback={
-              <div className="mx-auto min-w-0 w-full max-w-xl">
+              <div className="public-search mx-auto min-w-0 w-full max-w-xl">
                 <Input
                   aria-label="Search channels or firms"
                   placeholder="Search channels or firms"
@@ -132,19 +141,66 @@ function ShellContent({
           </Suspense>
         )}
         <div
+          data-header-actions
           className={`flex shrink-0 items-center gap-2 ${workspace ? "ml-auto" : "ml-auto sm:ml-0"}`}
         >
-          <Button
-            type="button"
-            variant="outline"
-            disabled
-            aria-label="Buy me a coffee (coming soon)"
-            title="Buy me a coffee (coming soon)"
-            className="size-9 shrink-0 p-0 text-muted-foreground disabled:opacity-70 sm:w-auto sm:px-3"
-          >
-            <Coffee aria-hidden="true" />
-            <span className="hidden sm:inline">Buy me a coffee</span>
-          </Button>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                aria-label="Keep lights on"
+                className="size-9 shrink-0 p-0 text-muted-foreground sm:w-auto sm:px-3"
+              >
+                <Coffee aria-hidden="true" />
+                <span className="hidden sm:inline">Keep lights on</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent
+              className="sm:max-w-md"
+              onOpenAutoFocus={(event) => {
+                event.preventDefault();
+                supportCancelRef.current?.focus();
+              }}
+            >
+              <div
+                className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground"
+                aria-hidden="true"
+              >
+                <Coffee className="size-6" />
+              </div>
+              <DialogHeader className="text-center sm:text-center">
+                <DialogTitle>Keep lights on</DialogTitle>
+                <DialogDescription asChild>
+                  <div className="space-y-3">
+                    <p>Your support helps me keep YT Equity going. Thank you!</p>
+                    <p>
+                      Opens my YouTube video in a new tab, where you can leave a
+                      one-time tip with Super Thanks.
+                    </p>
+                  </div>
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="sm:justify-center">
+                <DialogClose asChild>
+                  <Button ref={supportCancelRef} type="button" variant="outline">
+                    Maybe later
+                  </Button>
+                </DialogClose>
+                <DialogClose asChild>
+                  <Button asChild>
+                    <a
+                      href="https://www.youtube.com/watch?v=WNGNhItoRh8#yt-equity-thanks"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Continue
+                    </a>
+                  </Button>
+                </DialogClose>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <ThemeToggle compact={workspace} />
         </div>
       </header>
@@ -249,7 +305,7 @@ function WorkspaceNavigation({ role }: { role?: "moderator" | "admin" }) {
       icon: Inbox,
       active:
         path === "/moderator" &&
-        ["inbox", "reports", "disputes"].includes(panel),
+        panel === "inbox",
     },
     {
       href: "/moderator?panel=directory",
@@ -257,9 +313,7 @@ function WorkspaceNavigation({ role }: { role?: "moderator" | "admin" }) {
       icon: Library,
       active:
         path === "/moderator" &&
-        ["directory", "channels", "firms", "claims", "evidence"].includes(
-          panel,
-        ),
+        panel === "directory",
     },
     {
       href: "/moderator?panel=activity",
@@ -300,8 +354,9 @@ function NavItems({
           >
             <Link
               href={href}
+              aria-current={active ? "page" : undefined}
               prefetch={currentPath ? false : undefined}
-              onClick={(event) => {
+              onClick={() => {
                 setOpenMobile(false);
               }}
             >
@@ -353,7 +408,8 @@ function PublicSearch() {
           window.dispatchEvent(new Event("atlas-search-submit"));
         }
       }}
-      className="relative mx-auto min-w-0 w-full max-w-xl"
+      role="search"
+      className="public-search relative mx-auto min-w-0 w-full max-w-xl"
     >
       <Search className="absolute left-4 top-3 size-4 text-muted-foreground" />
       <Input

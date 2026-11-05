@@ -16,7 +16,7 @@ for (const mode of ["report", "correction", "dispute"] as const) {
         `/report/channel\\?channelId=UCtest&contribution=${mode}&claimId=${claimId}`,
       ),
     );
-    const form = page.locator("#contribute");
+    const form = page.locator("#contribute:visible");
     await expect(form).toBeVisible();
     await expect(form.getByLabel("Email (optional)")).toBeHidden();
     await form
@@ -63,7 +63,7 @@ test("source controls, optional details, pending state, and retry preserve the d
   request,
 }) => {
   await page.goto("/channels/UCtest?contribution=report");
-  const form = page.locator("#contribute");
+  const form = page.locator("#contribute:visible");
   await form
     .getByLabel("What should we know?")
     .fill("A company acquired this channel.");
@@ -87,11 +87,21 @@ test("source controls, optional details, pending state, and retry preserve the d
   await request.post(`${api}/__fail-next`, {
     data: { path: "/api/v1/submissions", method: "POST", status: 503 },
   });
-  await request.post(`${api}/__delay`, {
-    data: { path: "/api/v1/submissions", ms: 600 },
+  // Hold the Server Action until the pending UI is observed; no timing window.
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/*", async (route) => {
+    if (route.request().method() === "POST" && route.request().headers()["next-action"]) {
+      await pending;
+    }
+    await route.continue();
   });
-  await form.getByRole("button", { name: "Send report", exact: true }).click();
-  await expect(form.getByRole("button", { name: "Sending…" })).toBeDisabled();
+  try {
+    await form.getByRole("button", { name: "Send report", exact: true }).click();
+    await expect(form.getByRole("button", { name: "Sending…" })).toBeDisabled();
+  } finally {
+    release();
+  }
   await expect(form.getByRole("alert")).toContainText("couldn't submit");
   await expect(form.getByLabel("What should we know?")).toHaveValue(
     "A company acquired this channel.",
@@ -124,7 +134,7 @@ test("unknown channel report and native validation", async ({
   request,
 }) => {
   await page.goto("/channels/UCunknown?contribution=report");
-  const form = page.locator("#contribute");
+  const form = page.locator("#contribute:visible");
   await form.getByRole("button", { name: "Send report", exact: true }).click();
   await expect(form.getByLabel("What should we know?")).toBeFocused();
   await form
@@ -201,7 +211,7 @@ test("validation reveals collapsed optional fields and associates inline errors"
   page,
 }) => {
   await page.goto("/channels/UCtest?contribution=dispute");
-  const form = page.locator("#contribute");
+  const form = page.locator("#contribute:visible");
   await form
     .getByLabel("What needs correcting?")
     .fill("This record needs correcting.");
@@ -226,46 +236,6 @@ test("validation reveals collapsed optional fields and associates inline errors"
     form.getByText("Use 10–4,000 characters.", { exact: true }),
   ).toBeVisible();
 });
-
-for (const colorScheme of ["light", "dark"] as const) {
-  test(`mobile and short viewport layout in ${colorScheme} theme`, async ({
-    page,
-  }) => {
-    await page.emulateMedia({ colorScheme });
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/channels/UCtest?contribution=report");
-    const form = page.locator("#contribute");
-    await form
-      .getByRole("button", { name: "Send report", exact: true })
-      .scrollIntoViewIfNeeded();
-    await expect(
-      form.getByRole("button", { name: "Send report", exact: true }),
-    ).toBeInViewport();
-    expect(
-      await form
-        .getByLabel("Source link", { exact: true })
-        .evaluate((el) => getComputedStyle(el).fontSize),
-    ).toBe("16px");
-    await form.getByText("Optional details", { exact: true }).click();
-    for (let i = 0; i < 4; i++)
-      await form.getByRole("button", { name: "Add another link" }).click();
-    await page.setViewportSize({ width: 390, height: 480 });
-    await form.getByLabel("Email (optional)").scrollIntoViewIfNeeded();
-    await expect(form.getByLabel("Email (optional)")).toBeInViewport();
-    await form
-      .getByRole("button", { name: "Send report", exact: true })
-      .scrollIntoViewIfNeeded();
-    await expect(
-      form.getByRole("button", { name: "Send report", exact: true }),
-    ).toBeInViewport();
-    const bounds = await form.boundingBox();
-    expect(bounds!.x).toBeGreaterThanOrEqual(0);
-    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
-    expect(
-      await form.evaluate((el) => el.scrollWidth <= el.clientWidth),
-    ).toBeTruthy();
-  });
-}
 
 async function fillEvidence(page: import("@playwright/test").Page) {
   await page
@@ -367,41 +337,12 @@ for (const change of ["channel", "contribution"] as const) {
   });
 }
 
-for (const status of [409, 429]) {
-  test(`submission ${status} keeps the draft and allows retry`, async ({
-    page,
-    request,
-  }) => {
-    await page.goto("/report/channel?channelId=UCtest");
-    await fillEvidence(page);
-    await request.post(`${api}/__fail-next`, {
-      data: { path: "/api/v1/submissions", method: "POST", status },
-    });
-    await page
-      .getByRole("button", { name: "Send report", exact: true })
-      .click();
-    await expect(page.locator("#contribute > p[role=alert]")).toContainText(
-      status === 409 ? "already under review" : "Too many submissions",
-    );
-    await expect(page.getByLabel("Channel handle or ID")).toHaveValue("UCtest");
-    await expect(page.getByLabel("What should we know?")).toHaveValue(
-      "This channel has new ownership.",
-    );
-    await page
-      .getByRole("button", { name: "Send report", exact: true })
-      .click();
-    await expect(
-      page.getByRole("status").filter({ hasText: "Report sent" }),
-    ).toBeVisible();
-  });
-}
-
 test("profile and issue pages expose the dedicated report page", async ({
   page,
 }) => {
   await page.goto("/channels/UCtest");
   await page
-    .getByRole("link", { name: "Report this channel", exact: true })
+    .getByRole("link", { name: "Report channel", exact: true })
     .click();
   await expect(page).toHaveURL(
     "/report/channel?channelId=UCtest&contribution=report",

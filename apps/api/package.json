@@ -8,10 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "tsc --noEmit -p tsconfig.json",
-    "test:integration": "node --import tsx --experimental-test-module-mocks --test test/*.test.mjs",
-    "test": "node --import tsx --experimental-test-module-mocks --test test/public-visibility.test.mjs",
-    "test:reports": "node --import tsx --test test/report*.test.ts",
-    "test:relationships": "tsx --test test/relationships.test.ts test/snapshot-cache.test.ts",
+    "test:integration": "node --test test/integration/*.test.mjs",
+    "test": "node --import tsx --experimental-test-module-mocks --test test/*.test.mjs test/*.test.ts",
     "start": "node ../../scripts/validate-env.mjs api && tsx src/server.ts"
   },
   "dependencies": {
@@ -25,7 +23,6 @@
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "resend": "^4.0.0",
-    "ws": "^8.18.0",
     "zod": "^3.25.0"
   },
   "devDependencies": {

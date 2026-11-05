@@ -80,13 +80,6 @@ export async function ModeratorWorkspace({
                   ? "Directory"
                   : "Activity"}
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {panel === "inbox"
-                ? "Review community reports and their supporting evidence."
-                : panel === "directory"
-                  ? "Manage channels, firms, and ownership relationships."
-                  : "Review the latest workspace changes."}
-            </p>
           </div>
         </div>
         {panel === "inbox" ? (
@@ -233,11 +226,11 @@ async function ReportDetail({
     <>
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>
-          <Badge variant="secondary" className="mb-2 capitalize">
-            {report.kind === "feedback"
-              ? "General feedback"
-              : report.kind.replace("_", " ")}
-          </Badge>
+          {report.kind !== "feedback" && (
+            <p className="mb-2 text-xs capitalize text-muted-foreground">
+              {report.kind.replace("_", " ")}
+            </p>
+          )}
           <h2 className="text-xl font-semibold tracking-tight">
             {selected.channel?.name ?? report.channelId ?? "General feedback"}
           </h2>
@@ -610,8 +603,6 @@ async function EditorSection({
   const kind = params.get("entity"),
     id = params.get("entityId");
   if ((kind !== "channels" && kind !== "firms") || !id) return null;
-  // Entity editing historically uses records from the active directory page.
-  // Reuse the request's section read rather than issuing a second lookup.
   const result = await localRead(async () => {
     if (id === "new") return {};
     const directory = await getModeratorSection<ModeratorDirectory>(

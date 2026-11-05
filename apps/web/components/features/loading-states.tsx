@@ -1,31 +1,51 @@
+import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-export function GraphSkeleton() {
+export function GraphLoading({ className }: { className?: string }) {
   return (
-    <div
-      className="graph-page relative overflow-hidden bg-background"
-      role="status"
-      aria-label="Loading ownership graph"
-      aria-busy="true"
-    >
-      <div className="canvas-toolbar absolute top-4 flex gap-2">
-        <Skeleton className="h-9 w-36" />
-        <Skeleton className="h-9 w-32" />
-      </div>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="grid grid-cols-3 items-center gap-14 md:gap-24">
-          {Array.from({ length: 6 }, (_, i) => (
-            <div key={i} className="grid justify-items-center gap-3">
-              <Skeleton className="size-16 rounded-full md:size-20" />
-              <Skeleton className="h-3 w-20" />
-            </div>
-          ))}
-        </div>
+    <div className={cn("graph-page relative grid place-items-center overflow-hidden bg-background", className)} role="status" aria-label="Loading ownership graph" aria-busy="true">
+      <div className="graph-skeleton relative grid w-[min(80%,36rem)] grid-cols-2 gap-x-12 gap-y-16 px-4 md:grid-cols-3 md:gap-x-24" aria-hidden="true">
+        <svg viewBox="0 0 600 300" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 size-full p-8 text-border" fill="none">
+          <path d="M60 50 300 50 540 50 M60 250 300 250 540 250 M60 50 300 250 540 50 M60 250 300 50 540 250" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 6" />
+        </svg>
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className="relative grid justify-items-center gap-3">
+            <Skeleton className="size-16 rounded-full motion-reduce:animate-none md:size-20" />
+            <Skeleton className="h-3 w-20 motion-reduce:animate-none" />
+          </div>
+        ))}
       </div>
       <span className="sr-only">Loading ownership records…</span>
     </div>
   );
 }
+export function PageSkeleton() {
+  return (
+    <div className="container page page-narrow" role="status" aria-label="Loading page" aria-busy="true">
+      <Skeleton className="mb-4 h-8 w-56 max-w-full" />
+      <Skeleton className="mb-8 h-4 w-96 max-w-full" />
+      <Skeleton className="mb-4 h-40 w-full rounded-xl" />
+      <Skeleton className="h-40 w-full rounded-xl" />
+    </div>
+  );
+}
+
+export function ReportFormSkeleton() {
+  return (
+    <div className="grid gap-6 rounded-xl border p-6" role="status" aria-label="Loading report form" aria-busy="true">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="grid gap-3">
+          <Skeleton className="h-4 w-40 max-w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-3 w-72 max-w-full" />
+        </div>
+      ))}
+      <Skeleton className="h-24 w-full" />
+      <Skeleton className="h-10 w-32" />
+    </div>
+  );
+}
+
 export function WorkspaceSkeleton() {
   return (
     <div

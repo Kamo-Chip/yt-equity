@@ -3,8 +3,6 @@ import { useEffect, useState } from "react";
 import type { ModeratorDirectory } from "@yt-equity/contracts";
 import { moderatorFetch } from "@/lib/api";
 
-// The searchable popover is interactive. Its transient results are not a second
-// directory cache; cancel each superseded lookup and let Fastify validate it.
 export function useEntityOptions(resource: "channels" | "firms", term: string, open: boolean) {
   const [result, setResult] = useState<{ key: string; data?: ModeratorDirectory; error?: boolean }>({ key: "" });
   const [retry, setRetry] = useState(0);

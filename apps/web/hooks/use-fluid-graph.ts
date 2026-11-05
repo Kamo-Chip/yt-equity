@@ -29,6 +29,9 @@ import {
   type Particle,
 } from "@/lib/fluid-physics";
 import type { Simulation } from "d3-force";
+import { createParticle, fluidLinks, fluidTopology, initializeFluidGraph } from "@/lib/fluid-initialization";
+
+const RESET_DURATION_MS = 600;
 
 export function useFluidGraph<N extends Node>(
   seeds: N[],
@@ -37,10 +40,11 @@ export function useFluidGraph<N extends Node>(
   interactionRevision = 0,
   transitionKey = "",
 ) {
-  const [nodes, setNodes, onNodesChange] = useNodesState<N>([]);
-  const [displayEdges, setDisplayEdges] = useState<Edge[]>([]);
-  const retainedNodes = useRef(new Map<string, N>());
-  const retainedEdges = useRef(new Map<string, Edge>());
+  const [initial] = useState(() => initializeFluidGraph(seeds, edges));
+  const [nodes, setNodes, onNodesChange] = useNodesState<N>(initial.nodes);
+  const [displayEdges, setDisplayEdges] = useState<Edge[]>(initial.edges);
+  const retainedNodes = useRef(new Map(initial.nodes.map(node => [node.id, node])));
+  const retainedEdges = useRef(new Map(initial.edges.map(edge => [edge.id, edge])));
   const nodePresence = useRef(new Map<string, NodePresence>());
   const edgePresence = useRef(new Map<string, EdgePresence>());
   const visuals = useRef(
@@ -51,32 +55,46 @@ export function useFluidGraph<N extends Node>(
   );
   const edgeOpacity = useRef(new Map<string, number>());
   const frame = useRef<number | null>(null);
+  const resetStart = useRef(new Map<string, { x: number; y: number }>());
+  const resetTween = useRef<{
+    started: number;
+    from: Map<string, { x: number; y: number }>;
+    to: Map<string, { x: number; y: number }>;
+    complete: (finished: boolean) => void;
+  } | null>(null);
   const physicsClock = useRef<StepClock>({ last: null, accumulator: 0 });
   const blend = useRef(0);
   const physicsEdges = useRef(edges);
-  const positions = useRef(new Map<string, Particle>());
-  const simulation = useRef<Simulation<Particle, undefined> | null>(null);
+  const positions = useRef(initial.positions);
+  const simulation = useRef<Simulation<Particle, undefined> | null>(initial.simulation);
   const renderedTemplates = useRef(new WeakMap<N, N>());
   const templates = useRef(seeds),
     reduced = useRef(false);
-  const active = useRef<Particle[]>([]);
+  const active = useRef<Particle[]>(initial.particles);
   const dragSamples = useRef(new Map<string, MotionSample[]>());
+  const cancelReset = useCallback(() => {
+    const tween = resetTween.current;
+    if (!tween) return;
+    resetTween.current = null;
+    for (const p of active.current) {
+      p.vx = p.vy = 0;
+      rememberHome(p, positions.current);
+      wakeParticle(p, positions.current, "sleeping");
+      synchronizePosition(p);
+    }
+    tween.complete(false);
+  }, []);
+  const prepareReset = useCallback(() => {
+    cancelReset();
+    resetStart.current = new Map([...visuals.current].map(([id, visual]) => [id, { ...visual.position }]));
+  }, [cancelReset]);
   const previous = useRef({
     layout: layoutKey,
-    topology: "",
+    topology: initial.topology,
     interaction: interactionRevision,
     transitionKey,
   });
-  const topology =
-    seeds
-      .map((n) => n.id)
-      .sort()
-      .join("|") +
-    "::" +
-    edges
-      .map((e) => e.id + ":" + e.source + ":" + e.target)
-      .sort()
-      .join("|");
+  const topology = fluidTopology(seeds, edges);
   const clearPresence = useCallback(() => {
     nodePresence.current.clear();
     edgePresence.current.clear();
@@ -114,7 +132,24 @@ export function useFluidGraph<N extends Node>(
   const render = useCallback(
     function renderFrame() {
       const now = performance.now();
-      if (simulation.current && !reduced.current && !document.hidden) {
+      const tween = resetTween.current;
+      if (tween) {
+        const progress = reduced.current ? 1 : Math.min(1, (now - tween.started) / RESET_DURATION_MS);
+        const eased = 1 - (1 - progress) ** 3;
+        for (const p of active.current) {
+          const to = tween.to.get(p.id);
+          if (!to) continue;
+          const from = tween.from.get(p.id) ?? to;
+          p.x = from.x + (to.x - from.x) * eased;
+          p.y = from.y + (to.y - from.y) * eased;
+          synchronizePosition(p);
+        }
+        if (progress === 1) {
+          resetTween.current = null;
+          tween.complete(true);
+        }
+      }
+      if (!tween && simulation.current && !reduced.current && !document.hidden) {
         blend.current = advanceClock(physicsClock.current, now, () => {
           if (graphMoving(active.current))
             stepGraph(simulation.current!, active.current, positions.current);
@@ -249,7 +284,7 @@ export function useFluidGraph<N extends Node>(
           : nextEdges,
       );
       if (
-        (nodePresence.current.size ||
+        (resetTween.current || nodePresence.current.size ||
           edgePresence.current.size ||
           (!reduced.current &&
             simulation.current &&
@@ -302,7 +337,7 @@ export function useFluidGraph<N extends Node>(
     transitionKey,
     render,
   ]);
-  useEffect(() => () => clearPresence(), [clearPresence]);
+  useEffect(() => () => { cancelReset(); clearPresence(); simulation.current?.stop(); }, [cancelReset, clearPresence]);
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
     reduced.current = media.matches;
@@ -344,6 +379,13 @@ export function useFluidGraph<N extends Node>(
     };
   }, [render, clearPresence]);
   useEffect(() => {
+    if (previous.current.topology === topology && previous.current.layout === layoutKey &&
+        previous.current.interaction === interactionRevision && previous.current.transitionKey === transitionKey) {
+      // Initial mount and Activity resume reuse the already settled simulation.
+      render();
+      return;
+    }
+    cancelReset();
     const oldAlpha = simulation.current?.alpha() ?? 0;
     simulation.current?.stop();
     const currentSeeds = templates.current;
@@ -385,31 +427,7 @@ export function useFluidGraph<N extends Node>(
     for (const seed of currentSeeds) {
       let p = positions.current.get(seed.id);
       if (!p) {
-        p = {
-          id: seed.id,
-          kind: seed.data.kind as Particle["kind"],
-          seedX: seed.position.x,
-          seedY: seed.position.y,
-          homeX: seed.position.x,
-          homeY: seed.position.y,
-          phase: "layout",
-          quietSteps: 0,
-          glideHeading: 0,
-          previousX: seed.position.x,
-          previousY: seed.position.y,
-          wakeOriginX: 0,
-          wakeOriginY: 0,
-          arranged: false,
-          offsetX: 0,
-          offsetY: 0,
-          baseOffsetX: 0,
-          baseOffsetY: 0,
-          parents: [],
-          // Orb radii (42/26) plus a small visible breathing gap.
-          radius: seed.data.kind === "firm" ? 50 : 34,
-          x: seed.position.x,
-          y: seed.position.y,
-        };
+        p = createParticle(seed);
         positions.current.set(seed.id, p);
         added.add(seed.id);
       }
@@ -563,14 +581,7 @@ export function useFluidGraph<N extends Node>(
     }
     for (const seed of currentSeeds) retainedNodes.current.set(seed.id, seed);
     for (const edge of edges) retainedEdges.current.set(edge.id, edge);
-    const links = [
-      ...new Map(
-        edges.map((e) => [
-          e.source + ":" + e.target,
-          { source: e.source, target: e.target },
-        ]),
-      ).values(),
-    ];
+    const links = fluidLinks(edges);
     const instance = createGraphSimulation(
       active.current,
       links,
@@ -584,7 +595,9 @@ export function useFluidGraph<N extends Node>(
       !(sameTopology && oldAlpha > 0.001)
     ) {
       instance.stop().alpha(0);
-    } else if (reduced.current) {
+    } else if (reduced.current || layoutChanged || !visibleBefore.size) {
+      // Initial and responsive framing need the resting geometry. Subsequent
+      // user interactions retain their normal spring response.
       settleGraph(instance, active.current, positions.current);
     } else {
       instance.alpha(
@@ -606,6 +619,7 @@ export function useFluidGraph<N extends Node>(
     requestRender,
     clearPresence,
     anchorFor,
+    cancelReset,
   ]);
   const drag = useCallback(
     (node: N, sample: MotionSample) => {
@@ -682,30 +696,40 @@ export function useFluidGraph<N extends Node>(
     [render, requestRender],
   );
   const reset = useCallback(() => {
+    cancelReset();
     clearPresence();
     dragSamples.current.clear();
+    const from = resetStart.current.size ? resetStart.current : new Map([...visuals.current].map(([id, v]) => [id, { ...v.position }]));
+    resetStart.current = new Map();
+    const seedMap = new Map(templates.current.map((seed) => [seed.id, seed]));
     for (const p of positions.current.values()) {
+      const seed = seedMap.get(p.id);
+      if (seed) { p.seedX = seed.position.x; p.seedY = seed.position.y; }
       p.fx = p.fy = null;
       p.vx = p.vy = 0;
       wakeParticle(p, positions.current);
       p.arranged = false;
-      p.homeX = p.seedX;
-      p.homeY = p.seedY;
+      p.homeX = p.x = p.seedX;
+      p.homeY = p.y = p.seedY;
       p.offsetX = p.baseOffsetX;
       p.offsetY = p.baseOffsetY;
-      p.x = p.seedX;
-      p.y = p.seedY;
       synchronizePosition(p);
     }
     const instance = simulation.current;
     if (instance) {
-      instance.alphaTarget(0).alpha(0.7);
-      if (reduced.current) {
-        settleGraph(instance, active.current, positions.current);
-      } else requestRender();
+      instance.alphaTarget(0).alpha(1);
+      settleGraph(instance, active.current, positions.current);
     }
+    const to = new Map(active.current.map((p) => [p.id, { x: p.x ?? p.seedX, y: p.y ?? p.seedY }]));
+    const targets = templates.current.map((seed) => ({ ...seed, position: to.get(seed.id) ?? seed.position }));
+    const duration = reduced.current ? 0 : RESET_DURATION_MS;
+    const finished = new Promise<boolean>((complete) => {
+      if (!duration) { complete(true); return; }
+      resetTween.current = { started: performance.now(), from, to, complete };
+    });
     render();
-  }, [render, clearPresence, requestRender]);
+    return { nodes: targets, duration, finished };
+  }, [render, clearPresence, cancelReset]);
   return {
     nodes,
     edges: displayEdges,
@@ -715,5 +739,7 @@ export function useFluidGraph<N extends Node>(
     drag,
     stopDrag,
     reset,
+    prepareReset,
+    cancelReset,
   };
 }

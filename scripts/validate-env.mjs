@@ -5,8 +5,8 @@ export function validateEnvironment(service, env = process.env) {
   if (!["api", "web"].includes(service)) throw new Error("Expected service api or web");
   if (env.NODE_ENV !== "production") return;
   const required = service === "api"
-    ? ["DATABASE_URL", "WEB_ORIGIN", "BETTER_AUTH_URL", "BETTER_AUTH_SECRET", "RESEND_API_KEY", "RESEND_FROM"]
-    : ["WEB_ORIGIN", "API_INTERNAL_URL"];
+    ? ["API_PROXY_SECRET", "DATABASE_URL", "WEB_ORIGIN", "BETTER_AUTH_URL", "BETTER_AUTH_SECRET", "RESEND_API_KEY", "RESEND_FROM"]
+    : ["API_PROXY_SECRET", "WEB_ORIGIN", "API_INTERNAL_URL"];
   const missing = required.filter(key => !env[key]?.trim());
   if (missing.length) throw new Error(`Missing production configuration: ${missing.join(", ")}`);
   for (const key of service === "api" ? ["WEB_ORIGIN", "BETTER_AUTH_URL"] : ["WEB_ORIGIN", "API_INTERNAL_URL"]) {
@@ -17,6 +17,7 @@ export function validateEnvironment(service, env = process.env) {
     }
     if (key !== "API_INTERNAL_URL" && url.protocol !== "https:") throw new Error(`${key} must use HTTPS in production`);
   }
+  if (env.API_PROXY_SECRET.length < 32 || env.API_PROXY_SECRET.startsWith("replace-")) throw new Error("API_PROXY_SECRET must be the same persistent random secret of at least 32 characters on web and api");
   if (service === "api") {
     if (new URL(env.BETTER_AUTH_URL).origin !== new URL(env.WEB_ORIGIN).origin) {
       throw new Error("BETTER_AUTH_URL must match WEB_ORIGIN for same-origin authentication");

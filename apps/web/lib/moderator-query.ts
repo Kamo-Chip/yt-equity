@@ -10,14 +10,7 @@ export type Activity = {
 };
 export function moderatorLocation(params: URLSearchParams) {
   const requested = params.get("panel") ?? "inbox";
-  const panel: "inbox" | "directory" | "activity" =
-    requested === "activity"
-      ? "activity"
-      : ["directory", "channels", "firms", "claims", "evidence"].includes(
-            requested,
-          )
-        ? "directory"
-        : "inbox";
+  const panel = requested === "directory" || requested === "activity" ? requested : "inbox";
   const common = {
     q: params.get("q") ?? "",
     page: params.get("page") ?? 1,
@@ -30,8 +23,7 @@ export function moderatorLocation(params: URLSearchParams) {
   const directoryParsed = moderatorDirectoryQuerySchema.safeParse({
     ...common,
     resource:
-      params.get("resource") ??
-      (["channels", "firms"].includes(requested) ? requested : "relationships"),
+      params.get("resource") ?? "relationships",
     sort: params.get("sort") ?? undefined,
     direction: params.get("direction") ?? undefined,
     type: params.get("type") ?? "all",

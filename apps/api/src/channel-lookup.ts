@@ -1,9 +1,11 @@
-import { db, eq, or } from "@yt-equity/db";
-import { channelAliases, channels } from "@yt-equity/db/schema";
-import { inArray, sql } from "drizzle-orm";
+import { normalizeChannelIdentifier } from "@yt-equity/contracts";
+import { db,eq,or } from "@yt-equity/db";
+import { channelAliases,channels } from "@yt-equity/db/schema";
+import { inArray,sql } from "drizzle-orm";
 
 // YouTube handles are case-insensitive; canonical UC channel IDs are not.
 function identifierKey(identifier: string) {
+  identifier = normalizeChannelIdentifier(identifier);
   return identifier.startsWith("UC") ? identifier : identifier.toLowerCase();
 }
 
@@ -11,7 +13,7 @@ export async function resolveChannels(identifiers: string[]) {
   const keys = [...new Set(identifiers.map(identifierKey))];
   const [directChannels, aliasMatches] = await Promise.all([
     db.select().from(channels).where(or(
-      inArray(channels.channelId, identifiers),
+      inArray(channels.channelId, identifiers.map(normalizeChannelIdentifier)),
       inArray(sql`lower(${channels.handle})`, keys)
     )),
     db.select({ alias: channelAliases.alias, channel: channels })

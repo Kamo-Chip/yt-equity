@@ -128,3 +128,22 @@
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
+
+.success {
+  background: var(--card);
+  box-shadow: var(--surface-shadow);
+  animation: form-arrive var(--motion-panel) var(--motion-ease) both;
+}
+.optionalContent {
+  animation: form-arrive var(--motion-panel) var(--motion-ease) both;
+}
+.error {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--destructive) 28%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--destructive) 5%, var(--card));
+}
+@keyframes form-arrive {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}

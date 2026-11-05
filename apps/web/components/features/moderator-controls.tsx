@@ -1,27 +1,6 @@
 "use client";
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  useTransition,
-} from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { toast } from "sonner";
-import type {
-  ModeratorInbox,
-  ModeratorChannel,
-  ModeratorFirm,
-  ModeratorRelationship,
-  SubmissionContext,
-} from "@yt-equity/contracts";
-import { ApiError } from "@/lib/api";
-import { mutateModerator } from "@/lib/workspace-mutation";
-import { moderatorLocation } from "@/lib/moderator-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -29,72 +8,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ApiError } from "@/lib/api";
+import { moderatorLocation } from "@/lib/moderator-query";
+import { mutateModerator } from "@/lib/workspace-mutation";
+import type {
+  ModeratorInbox,
+  SubmissionContext
+} from "@yt-equity/contracts";
 import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-} from "@/components/ui/pagination";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
-import { RelationshipEditor } from "./relationship-editor";
-import { EntityEditor } from "./entity-editor";
-import {
-  Plus,
-  Search,
-  ChevronLeft,
-  ChevronRight,
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
-  X,
+  Plus,
+  Search,
+  X
 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { toast } from "sonner";
+import { useModeratorNavigation, type Changes } from "./moderator-navigation";
+import { Pager } from "./workspace-pager";
 
-type Changes = Record<string, string | null>;
-const NavigationContext = createContext<{
-  pending: boolean;
-  update: (changes: Changes, replace?: boolean) => void;
-  refresh: () => void;
-} | null>(null);
-export function ModeratorNavigation({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  function update(changes: Changes, replace = false) {
-    const next = new URLSearchParams(window.location.search);
-    for (const [key, value] of Object.entries(changes))
-      value === null ? next.delete(key) : next.set(key, value);
-    startTransition(() =>
-      router[replace ? "replace" : "push"](
-        "/moderator" + (next.size ? "?" + next : ""),
-        { scroll: false },
-      ),
-    );
-  }
-  return (
-    <NavigationContext.Provider
-      value={{
-        pending,
-        update,
-        refresh: () => startTransition(() => router.refresh()),
-      }}
-    >
-      {children}
-    </NavigationContext.Provider>
-  );
-}
-function useModeratorNavigation() {
-  const navigation = useContext(NavigationContext);
-  if (!navigation) throw new Error("Moderator navigation is required");
-  return navigation;
-}
 export function ModeratorSearch({
   panel,
 }: {
@@ -265,24 +204,24 @@ export function DirectoryControls() {
               location.directory.status !== "all" ||
               location.directory.publication !== "all" ||
               location.directory.q) && (
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={pending}
-                onClick={() =>
-                  update({
-                    type: null,
-                    status: null,
-                    publication: null,
-                    q: null,
-                    page: null,
-                  })
-                }
-              >
-                <X />
-                Reset filters
-              </Button>
-            )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={pending}
+                  onClick={() =>
+                    update({
+                      type: null,
+                      status: null,
+                      publication: null,
+                      q: null,
+                      page: null,
+                    })
+                  }
+                >
+                  <X />
+                  Reset filters
+                </Button>
+              )}
           </div>
         )}
         <Button
@@ -292,9 +231,9 @@ export function DirectoryControls() {
             location.directory.resource === "relationships"
               ? update({ edit: "new", source: null })
               : update({
-                  entity: location.directory.resource,
-                  entityId: "new",
-                })
+                entity: location.directory.resource,
+                entityId: "new",
+              })
           }
         >
           <Plus />
@@ -467,7 +406,7 @@ export function ReportDecisions({
     }
   }
   return (
-    <div className="flex gap-2 border-t pt-5">
+    <div className="flex flex-wrap gap-2 border-t pt-5">
       <Button
         disabled={busy || !reviewReady}
         onClick={() => decided("approved")}
@@ -500,102 +439,6 @@ export function ModeratorRetry({ message }: { message: string }) {
     </div>
   );
 }
-export function EditorSheet({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  const { update } = useModeratorNavigation();
-  const params = useSearchParams();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  // Radix portals render only after hydration. Keep the streamed loading/error
-  // frame visible in the initial HTML, then hand focus management to Radix.
-  if (!mounted) {
-    const query = new URLSearchParams(params);
-    for (const key of ["edit", "source", "entity", "entityId"])
-      query.delete(key);
-    return (
-      <>
-        <div className="fixed inset-0 z-50 bg-black/50" />
-        <section
-          role="dialog"
-          aria-modal="true"
-          aria-label={title}
-          className="fixed inset-y-0 right-0 z-50 flex h-full w-full flex-col gap-4 border-l bg-background shadow-lg sm:max-w-2xl"
-        >
-          <div className="flex flex-col gap-1.5 p-4">
-            <h2 className="font-semibold">{title}</h2>
-            <p className="text-sm text-muted-foreground">
-              Manage directory records.
-            </p>
-          </div>
-          {children}
-          <a
-            className="absolute right-4 top-4 text-sm underline"
-            href={"/moderator" + (query.size ? "?" + query : "")}
-          >
-            Close
-          </a>
-        </section>
-      </>
-    );
-  }
-  return (
-    <Sheet
-      open
-      onOpenChange={(open) => {
-        if (!open)
-          update({ edit: null, source: null, entity: null, entityId: null });
-      }}
-    >
-      <SheetContent className="w-full sm:max-w-2xl">
-        <SheetHeader>
-          <SheetTitle>{title}</SheetTitle>
-          <SheetDescription>Manage directory records.</SheetDescription>
-        </SheetHeader>
-        {children}
-      </SheetContent>
-    </Sheet>
-  );
-}
-export function RelationshipForm({
-  record,
-  context,
-}: {
-  record?: ModeratorRelationship;
-  context?: SubmissionContext;
-}) {
-  const { update } = useModeratorNavigation();
-  const close = () => update({ edit: null, source: null });
-  return (
-    <RelationshipEditor
-      record={record}
-      submission={context?.submission}
-      channels={
-        context?.channel ? [context.channel] : record ? [record.channel] : []
-      }
-      firms={record?.firm ? [record.firm] : []}
-      onClose={close}
-      onSaved={close}
-    />
-  );
-}
-export function EntityForm({
-  kind,
-  record,
-}: {
-  kind: "channels" | "firms";
-  record?: ModeratorChannel | ModeratorFirm;
-}) {
-  const { update } = useModeratorNavigation();
-  const close = () => update({ entity: null, entityId: null });
-  return (
-    <EntityEditor kind={kind} record={record} onClose={close} onSaved={close} />
-  );
-}
 function WorkspaceFilter({
   label,
   value,
@@ -607,103 +450,25 @@ function WorkspaceFilter({
   options: string[];
   onChange: (value: string) => void;
 }) {
+  const optionLabel = (option: string) => option === "all"
+    ? label === "Relationship" ? "All relationships"
+      : label === "Record status" ? "All statuses" : "Published & drafts"
+    : option[0].toUpperCase() + option.slice(1);
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger aria-label={label} className="w-auto min-w-32 bg-card">
-        <SelectValue />
+        <SelectValue>{optionLabel(value)}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {options.map((option) => (
           <SelectItem value={option} key={option}>
-            {option === "all"
-              ? label === "Relationship"
-                ? "All relationships"
-                : label === "Record status"
-                  ? "All statuses"
-                  : "Published & drafts"
-              : option[0].toUpperCase() + option.slice(1)}
+            {optionLabel(option)}
           </SelectItem>
         ))}
       </SelectContent>
     </Select>
   );
 }
-function Pager({
-  page,
-  pageSize,
-  total,
-  pending,
-  onChange,
-  onPageSizeChange,
-}: {
-  page: number;
-  pageSize: number;
-  total: number;
-  pending: boolean;
-  onChange: (page: number) => void;
-  onPageSizeChange: (pageSize: number) => void;
-}) {
-  const pages = Math.max(1, Math.ceil(total / pageSize));
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-xs text-muted-foreground">
-      <span role="status">
-        {pending ? (
-          "Loading…"
-        ) : (
-          <>
-            {total} record{total === 1 ? "" : "s"} · Page {page} of {pages}
-          </>
-        )}
-      </span>
-      <div className="flex items-center gap-3">
-        <Select
-          value={String(pageSize)}
-          disabled={pending}
-          onValueChange={(value) => onPageSizeChange(Number(value))}
-        >
-          <SelectTrigger
-            aria-label="Rows per page"
-            className="h-8 w-auto gap-2 text-xs"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {[...new Set([25, 50, 100, pageSize])]
-              .sort((a, b) => a - b)
-              .map((size) => (
-                <SelectItem key={size} value={String(size)}>
-                  {size} per page
-                </SelectItem>
-              ))}
-          </SelectContent>
-        </Select>
-        <Pagination className="mx-0 w-auto">
-          <PaginationContent>
-            <PaginationItem>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Previous page"
-                disabled={page <= 1 || pending}
-                onClick={() => onChange(page - 1)}
-              >
-                <ChevronLeft />
-              </Button>
-            </PaginationItem>
-            <PaginationItem>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Next page"
-                disabled={page >= pages || pending}
-                onClick={() => onChange(page + 1)}
-              >
-                <ChevronRight />
-              </Button>
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      </div>
-    </div>
-  );
-}
+
+export { EditorSheet, EntityForm, RelationshipForm } from "./moderator-editors";
+export { ModeratorNavigation } from "./moderator-navigation";

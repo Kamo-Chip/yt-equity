@@ -1,68 +1,54 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
-import { useEntityOptions } from "@/hooks/use-entity-options";
-import { mutateModerator } from "@/lib/workspace-mutation";
-import { useUnsavedNavigation } from "@/hooks/use-unsaved-navigation";
-import { toast } from "sonner";
-import {
-  relationshipEditorSchema,
-  type ModeratorChannel,
-  type ModeratorFirm,
-  type ModeratorRelationship,
-  type RelationshipEditor as InputData,
-  type Source,
-} from "@yt-equity/contracts";
-import { ApiError, type PendingSubmission } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
-import {
-  Field,
-  FieldLabel,
-  FieldError,
-  FieldDescription,
-} from "@/components/ui/field";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
 import {
   AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
   AlertDialogAction,
   AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  Command,
-  CommandInput,
-  CommandList,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-} from "@/components/ui/command";
-import { Plus, Trash2, ChevronDown, Check } from "lucide-react";
-const blankSource = (): Source => ({ url: "", tier: "official" });
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
+import { blankSource, useRelationshipDraft, type RelationshipDraftProps } from "@/hooks/use-relationship-draft";
+import type { RelationshipEditor as InputData } from "@yt-equity/contracts";
+import { Check, ChevronDown, Plus, Trash2 } from "lucide-react";
 export function RelationshipEditor({
   record,
   submission,
@@ -70,184 +56,8 @@ export function RelationshipEditor({
   firms,
   onClose,
   onSaved,
-}: {
-  record?: ModeratorRelationship;
-  submission?: PendingSubmission;
-  channels: ModeratorChannel[];
-  firms: ModeratorFirm[];
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const initial = useMemo<InputData>(
-    () => ({
-      channel: record
-        ? { id: record.channel.id }
-        : channels.find(
-              (c) =>
-                !!submission?.channelId &&
-                (channels.length === 1 ||
-                  c.channelId === submission.channelId ||
-                  c.handle?.toLowerCase() ===
-                    submission.channelId?.toLowerCase()),
-            )
-          ? {
-              id: channels.find(
-                (c) =>
-                  !!submission?.channelId &&
-                  (channels.length === 1 ||
-                    c.channelId === submission.channelId ||
-                    c.handle?.toLowerCase() ===
-                      submission.channelId?.toLowerCase()),
-              )!.id,
-            }
-          : {
-              channelId: submission?.channelId ?? "",
-              name: "",
-              handle: submission?.payload.channelHandle,
-            },
-      firm: record?.firm ? { id: record.firm.id } : null,
-      type: record?.type ?? submission?.payload.type ?? "funding",
-      status: record?.status ?? "provisional",
-      confidence: record?.confidence ?? 0,
-      announcedAt: record?.announcedAt ?? null,
-      published: record?.published ?? false,
-      sources: record
-        ? [
-            ...record.sources.map((s) => ({ ...s })),
-            ...(submission?.payload.sources ?? [])
-              .filter((url) => !record.sources.some((s) => s.url === url))
-              .map((url) => ({ url, tier: "community" as const })),
-          ]
-        : (submission?.payload.sources?.map((url) => ({
-            url,
-            tier: "community",
-          })) ?? [blankSource()]),
-    }),
-    [record, submission, channels],
-  );
-  const [channelOpen, setChannelOpen] = useState(false),
-    [firmOpen, setFirmOpen] = useState(false);
-  const [channelSearch, setChannelSearch] = useState(""),
-    [firmSearch, setFirmSearch] = useState("");
-  const [data, setData] = useState(initial),
-    [busy, setBusy] = useState(false),
-    [errors, setErrors] = useState<Record<string, string>>({}),
-    [failure, setFailure] = useState(""),
-    [confirm, setConfirm] = useState<"discard" | "archive" | null>(null);
-  const dirty = JSON.stringify(data) !== JSON.stringify(initial);
-  const navigation = useUnsavedNavigation(dirty || busy, () =>
-    setConfirm("discard"),
-  );
-  const [channelTerm, setChannelTerm] = useState(""),
-    [firmTerm, setFirmTerm] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => setChannelTerm(channelSearch), 200);
-    return () => clearTimeout(t);
-  }, [channelSearch]);
-  useEffect(() => {
-    const t = setTimeout(() => setFirmTerm(firmSearch), 200);
-    return () => clearTimeout(t);
-  }, [firmSearch]);
-  const channelLookup = useEntityOptions("channels", channelTerm, channelOpen);
-  const firmLookup = useEntityOptions("firms", firmTerm, firmOpen);
-  function close() {
-    if (busy) return;
-    if (dirty) setConfirm("discard");
-    else onClose();
-  }
-  function change<K extends keyof InputData>(key: K, value: InputData[K]) {
-    setData((old) => ({ ...old, [key]: value }));
-    setErrors({});
-    setFailure("");
-  }
-  async function save(published: boolean) {
-    if (busy) return;
-    setFailure("");
-    const parsed = relationshipEditorSchema.safeParse({ ...data, published });
-    if (!parsed.success) {
-      const fields: Record<string, string> = {};
-      for (const issue of parsed.error.issues)
-        fields[issue.path.join(".")] = issue.message;
-      setErrors(fields);
-      setTimeout(
-        () =>
-          document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(),
-        0,
-      );
-      return;
-    }
-    setBusy(true);
-    try {
-      await mutateModerator(
-        record ? "relationships/" + record.id : "relationships",
-        record ? "PATCH" : "POST", parsed.data,
-      );
-      toast.success(published ? "Relationship saved." : "Draft saved.");
-      onSaved();
-    } catch (e) {
-      setFailure(
-        e instanceof ApiError
-          ? e.message
-          : "Unable to save. Your changes are still here.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function archive() {
-    if (!record || busy) return;
-    setBusy(true);
-    try {
-      await mutateModerator("claims/" + record.id + "/archive", "POST");
-      toast.success("Relationship archived.");
-      onSaved();
-    } catch (e) {
-      setFailure(
-        e instanceof ApiError ? e.message : "Unable to archive relationship.",
-      );
-    } finally {
-      setBusy(false);
-      setConfirm(null);
-    }
-  }
-  const channelId = "id" in data.channel ? data.channel.id : "new";
-  const firmId =
-    data.firm && "id" in data.firm ? data.firm.id : data.firm ? "new" : "none";
-  const channelOptions = [
-    ...[
-      ...new Map(
-        [
-          ...channels,
-          ...(channelLookup.data?.resource === "channels"
-            ? channelLookup.data.items
-            : []),
-        ].map((c) => [c.id, c]),
-      ).values(),
-    ].map((c) => ({
-      value: c.id,
-      label: c.name + (c.handle ? " · " + c.handle : ""),
-    })),
-    { value: "new", label: "＋ Create a channel" },
-  ];
-  const firmOptions = [
-    { value: "none", label: "Undisclosed firm" },
-    ...[
-      ...new Map(
-        [
-          ...firms,
-          ...(firmLookup.data?.resource === "firms" ? firmLookup.data.items : []),
-        ].map((f) => [f.id, f]),
-      ).values(),
-    ].map((f) => ({ value: f.id, label: f.name })),
-    { value: "new", label: "＋ Create a firm" },
-  ];
-  const sourceChange = (i: number, key: keyof Source, value: string) =>
-    change(
-      "sources",
-      data.sources.map((s, index) =>
-        index === i ? { ...s, [key]: value || undefined } : s,
-      ),
-    );
+}: RelationshipDraftProps) {
+  const { data, busy, errors, failure, confirm, setConfirm, navigation, close, change, save, archive, channelId, firmId, channelOptions, firmOptions, channelOpen, setChannelOpen, channelSearch, setChannelSearch, firmOpen, setFirmOpen, firmSearch, setFirmSearch, channelLookup, firmLookup, sourceChange } = useRelationshipDraft({ record, submission, channels, firms, onClose, onSaved });
   return (
     <>
       <Sheet
@@ -257,6 +67,7 @@ export function RelationshipEditor({
         }}
       >
         <SheetContent
+          aria-describedby={undefined}
           className="w-full gap-0 p-0 sm:max-w-[680px]"
           onInteractOutside={(e) => {
             if (busy) e.preventDefault();
@@ -266,9 +77,6 @@ export function RelationshipEditor({
             <SheetTitle>
               {record ? "Edit relationship" : "Create relationship"}
             </SheetTitle>
-            <SheetDescription>
-              Connect a channel, its funding or acquisition, and the evidence.
-            </SheetDescription>
           </SheetHeader>
           <form
             className="flex min-h-0 flex-1 flex-col"
@@ -803,8 +611,8 @@ export function RelationshipEditor({
                   : data.status !== "confirmed"
                     ? "Choose Confirmed status to publish this relationship."
                     : "Confirmed relationships can be published to the directory."}
-                Relationships with an undisclosed firm appear on channel
-                profiles, but have no firm node in the graph.
+                Leave the firm undisclosed when its identity is not supported by
+                the evidence.
               </FieldDescription>
               {Object.keys(errors).length > 0 && (
                 <div role="alert" className="text-sm text-destructive">

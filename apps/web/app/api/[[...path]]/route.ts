@@ -1,3 +1,4 @@
+import { publicClientIdentity } from "@/lib/public-mutation";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { changesPublicDirectory, PUBLIC_DIRECTORY_TAG } from "@/lib/cache-policy";
@@ -19,6 +20,8 @@ async function forward(
   const url = `${upstream}/api/${path.join("/")}${request.nextUrl.search}`;
   const headers = new Headers(request.headers);
   headers.delete("host");
+  if (request.method === "POST" && path[0] === "v1" && path.length === 2 && ["reports", "submissions"].includes(path[1]))
+    headers.set("x-yt-equity-client", await publicClientIdentity());
   headers.set("origin", process.env.WEB_ORIGIN ?? request.nextUrl.origin);
   const response = await fetch(url, {
     method: request.method,

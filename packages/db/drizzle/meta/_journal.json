@@ -43,6 +43,20 @@
       "when": 1793821574306,
       "tag": "0005_creator_easter_egg",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793867691960,
+      "tag": "0006_firm_images",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793870881205,
+      "tag": "0007_directory_cleanup",
+      "breakpoints": true
     }
   ]
 }

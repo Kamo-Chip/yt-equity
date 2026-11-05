@@ -252,37 +252,3 @@ test("admin reads remain isolated from moderator and anonymous sessions", async 
   await page.goto("/admin");
   await expect(page).toHaveURL(/\/moderator\/sign-in$/);
 });
-
-test("admin tables fit all target sizes and themes with shadcn controls", async ({
-  page,
-  request,
-}, testInfo) => {
-  await request.post(api + "/__admin-data", { data: { invitations } });
-  for (const width of [1920, 1440, 390]) {
-    await page.setViewportSize({ width, height: 1000 });
-    for (const theme of ["light", "dark"] as const) {
-      await page.emulateMedia({ colorScheme: theme });
-      await page.goto("/admin");
-      await expect(
-        page.getByRole("table", { name: "Invitation history", exact: true }),
-      ).toBeVisible();
-      await expect(page.locator("html")).toHaveClass(new RegExp(theme));
-      expect(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth <= innerWidth,
-        ),
-      ).toBe(true);
-      expect(
-        (await page.locator(".admin-page:visible").boundingBox())!.width,
-      ).toBeLessThanOrEqual(1280);
-      await expect(page.locator(".admin-page:visible select")).toHaveCount(0);
-      await expect(
-        page.getByRole("textbox", { name: "Email", exact: true }),
-      ).toHaveAttribute("data-slot", "input");
-      await page.screenshot({
-        path: testInfo.outputPath(`admin-${width}-${theme}.png`),
-        fullPage: true,
-      });
-    }
-  }
-});

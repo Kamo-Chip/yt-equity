@@ -378,18 +378,8 @@ html[data-theme-transition]::view-transition-new(theme-toggle-icon) {
     transform: rotate(0) scale(1);
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0s !important;
-    transition-duration: 0s !important;
-    scroll-behavior: auto !important;
-  }
-}
-
 .graph-page {
-  height: calc(100dvh - var(--app-header-height, 64px));
+  height: 100dvh;
 }
 .graph-page > :not(:last-child) {
   flex-shrink: 0;
@@ -488,7 +478,12 @@ html[data-theme-transition]::view-transition-new(theme-toggle-icon) {
 .channel .orb-label {
   font-size: 11px;
   font-weight: 500;
-  width: 118px;
+  width: 80px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .orb-count {
   position: absolute;
@@ -553,44 +548,45 @@ html[data-theme-transition]::view-transition-new(theme-toggle-icon) {
 }
 .app-shell {
   --app-header-height: 64px;
+  --app-header-inset: 12px;
+  --app-shell-gutter: 8px;
+  --app-header-offset: calc(var(--app-header-height) + var(--app-header-inset) * 2);
   background: var(--canvas);
 }
 .app-header {
   height: var(--app-header-height);
-  width: 100%;
+  width: calc(100% - var(--app-shell-gutter) * 2);
+  margin: var(--app-header-inset) var(--app-shell-gutter);
   position: sticky;
-  top: 0;
+  top: var(--app-header-inset);
   z-index: 20;
-  background: var(--background);
-  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--surface-shadow);
 }
 .brand-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   flex-shrink: 0;
   width: 32px;
-  height: 24px;
-  border-radius: 8px;
-  background: #ed1717;
-  color: white;
-  box-shadow: 0 2px 5px #ef444424;
+  height: 32px;
+  object-fit: contain;
 }
 .floating-sidebar [data-slot="sidebar-inner"] {
   border-radius: 20px !important;
   height: auto;
-  max-height: calc(100dvh - var(--app-header-height) - 24px);
+  max-height: calc(100dvh - var(--app-header-offset) - 24px);
   border: 1px solid var(--border);
   box-shadow: var(--surface-shadow);
   background: var(--card);
   overflow: hidden;
 }
 .floating-sidebar[data-slot="sidebar-container"] {
-  top: calc(var(--app-header-height) + 12px) !important;
+  top: calc(var(--app-header-offset) + 12px) !important;
   bottom: auto !important;
   height: fit-content !important;
-  max-height: calc(100dvh - var(--app-header-height) - 24px);
-  padding: 0 8px !important;
+  max-height: calc(100dvh - var(--app-header-offset) - 24px);
+  padding: 0 var(--app-shell-gutter) !important;
 }
 .floating-sidebar [data-slot="sidebar-gap"] {
   background: transparent;
@@ -690,6 +686,7 @@ html[data-theme-transition]::view-transition-new(theme-toggle-icon) {
   }
   .app-header {
     gap: 8px;
+    padding-inline: 8px;
   }
   .floating-sidebar[data-slot="sidebar-container"] {
     top: 0 !important;
@@ -741,13 +738,21 @@ html[data-theme-transition]::view-transition-new(theme-toggle-icon) {
   outline-offset: -3px;
 }
 
-/* The graph extends beneath the short floating rail. Only its top toolbar
-   needs clearance; bottom controls belong against the canvas's left edge. */
+/* Let the canvas continue behind the floating header and navigation rail. */
+.app-body:has(.graph-page) {
+  margin-top: calc(-1 * var(--app-header-offset));
+  isolation: isolate;
+}
 .app-body:has(.graph-page) > [data-slot="sidebar"] > [data-slot="sidebar-gap"] {
   width: 0;
 }
 .canvas-toolbar {
   left: calc(var(--nav-clearance, 0px) + 16px);
+  top: calc(var(--app-header-offset) + 16px);
+}
+.graph-page .graph-detail {
+  margin-top: calc(var(--app-header-offset) + 12px);
+  height: calc(100% - var(--app-header-offset) - 24px);
 }
 
 /* Compact protected workspace. Public navigation and graph controls keep their styles. */
@@ -755,8 +760,8 @@ html[data-theme-transition]::view-transition-new(theme-toggle-icon) {
   background: var(--background);
 }
 .workspace-sidebar[data-slot="sidebar-container"] {
-  top: var(--app-header-height);
-  height: calc(100dvh - var(--app-header-height));
+  top: var(--app-header-offset);
+  height: calc(100dvh - var(--app-header-offset));
   border-color: var(--border);
   padding: 0;
 }
@@ -1015,3 +1020,138 @@ html[data-theme-transition]::view-transition-new(theme-toggle-icon) {
 .admin-invitations-table th:nth-child(4) { width: 20%; }
 .admin-invitations-table th:nth-child(5) { width: 12%; }
 .admin-page td:first-child { white-space: normal; overflow-wrap: anywhere; }
+
+/* Quiet feedback shared by public pages and the protected workspace. */
+:root {
+  --motion-fast: 160ms;
+  --motion-panel: 220ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+[data-slot="button"],
+[data-slot="sidebar-menu-button"],
+[data-slot="tabs-trigger"],
+.source-link {
+  transition: background-color var(--motion-fast), color var(--motion-fast),
+    border-color var(--motion-fast), box-shadow var(--motion-fast),
+    transform var(--motion-fast) var(--motion-ease);
+}
+[data-slot="button"]:active:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(1px);
+}
+:is(a, button, summary, [tabindex="0"]):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+[data-slot="table-container"]:focus-visible {
+  outline-offset: -3px;
+}
+[data-slot="dialog-content"],
+[data-slot="alert-dialog-content"] {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
+}
+[data-slot="dialog-content"],
+[data-slot="alert-dialog-content"],
+[data-slot="sheet-content"],
+[data-slot="dialog-overlay"],
+[data-slot="sheet-overlay"] {
+  animation-duration: var(--motion-panel);
+}
+.graph-detail,
+.auth-card,
+.page > header {
+  animation: surface-arrive var(--motion-panel) var(--motion-ease) both;
+}
+.graph-detail { animation-name: detail-arrive; }
+@keyframes surface-arrive {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes detail-arrive {
+  from { opacity: 0; transform: translateX(6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.page :is(h1, h2, p, a),
+.drawer-identity { overflow-wrap: anywhere; }
+@media (max-width: 767px) {
+  .app-shell:has(.public-header) { --app-header-height: 112px; }
+  .public-header {
+    flex-wrap: wrap;
+    align-content: center;
+    row-gap: 8px;
+    padding-block: 8px;
+  }
+  .public-header [data-header-actions] { margin-left: auto; }
+  .public-search {
+    order: 3;
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .public-header > [data-slot="sidebar-trigger"],
+  .public-header [data-header-actions] > button,
+  .workspace-sidebar [data-slot="sidebar-menu-button"],
+  .react-flow__controls button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .moderator-page :is([data-slot="input"], [data-slot="textarea"], select) {
+    font-size: 16px;
+  }
+  .moderator-page [data-slot="button"],
+  .moderator-page [data-slot="select-trigger"],
+  .page [data-slot="button"],
+  .auth-card [data-slot="button"],
+  .canvas-toolbar [data-slot="button"],
+  .canvas-toolbar [data-slot="select-trigger"],
+  [data-slot="dialog-content"] [data-slot="button"],
+  [data-slot="sheet-content"] [data-slot="button"],
+  [data-slot="dialog-close"],
+  [data-slot="sheet-close"] {
+    min-height: 44px;
+  }
+  [data-slot="button"][data-size^="icon"],
+  [data-slot="dialog-close"],
+  [data-slot="sheet-close"] { min-width: 44px; }
+  [data-slot="dialog-close"],
+  [data-slot="sheet-close"] { display: grid; place-items: center; }
+  .workspace-detail { padding: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media (max-width: 767px) {
+  .graph-legend { bottom: 72px; right: 16px; }
+  .graph-orb.firm .orb-label { font-size: 14px; }
+}
+/* Keep the review pane usable alongside the fixed desktop navigation. */
+.workspace-detail { min-width: 0; overflow-wrap: anywhere; }
+.workspace-detail a { min-width: 0; overflow-wrap: anywhere; }
+@media (min-width: 768px) and (max-width: 1023px) {
+  .workspace-layout { grid-template-columns: 1fr; }
+  .workspace-detail { border-left: 0; border-top: 1px solid var(--border); }
+}
+.moderator-activity-table:has(td[colspan]) { min-width: 0; }
+[data-slot="dialog-header"] { padding-inline-end: 32px; }
+[data-slot="sheet-header"]:not(.sr-only) { padding-inline-end: 64px; }
+@media (max-width: 480px) {
+  .profile-identity { flex-wrap: wrap; }
+  .profile-identity h1 { font-size: clamp(24px, 7vw, 30px); line-height: 1.25; }
+}
+
+/* Switch the loader and canvas together with one readiness attribute. Keeping
+   both mounted also preserves React Flow's measurement pass during hydration. */
+.graph-loading-overlay { display: none; }
+.graph-page[data-graph-initializing="true"] .graph-loading-overlay { display: grid; }
+.graph-page[data-graph-initializing="true"] .graph-canvas { opacity: 0; }
+.graph-page[data-graph-initializing="true"] :is(.canvas-toolbar, .graph-legend) { visibility: hidden; }
+/* The global reduced-motion rule gives every element a tiny transition.
+   Readiness must reveal the canvas immediately, without even a one-frame fade. */
+.graph-page :is(.graph-canvas, .canvas-toolbar, .graph-legend) { transition-property: none !important; }

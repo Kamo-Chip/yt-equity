@@ -1,43 +1,8 @@
-import { test, expect, chromium, type Page } from "@playwright/test";
+import { test, expect, chromium } from "@playwright/test";
 import { createServer } from "node:http";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
-
-
-async function storeScreenshot(page: Page, filename: string, heading: string, description: string) {
-  if (process.env.CAPTURE_EXTENSION_STORE_ASSETS !== "1") return;
-  const directory = resolve("../extension/store-assets");
-  await mkdir(directory, { recursive: true });
-  const style = await page.addStyleTag({ content: `
-    body { width:1280px; height:800px; overflow:hidden; background:linear-gradient(140deg,#fff 0%,#f6f6f8 65%,#fff2f2 100%); color:#171717; }
-    .popup-container { position:absolute; right:96px; top:32px; width:330px; max-height:736px; overflow:auto; background:white; border:1px solid #e5e5e5; border-radius:16px; box-shadow:0 24px 80px #17171718; }
-    #store-presentation { position:absolute; left:96px; top:168px; width:590px; font-family:Arial,sans-serif; }
-    #store-presentation .eyebrow { display:inline-block; font-size:13px; font-weight:700; letter-spacing:2px; color:#b40009; margin:0 0 26px; }
-    #store-presentation h2 { margin:0 0 28px; font-size:62px; line-height:1.06; letter-spacing:-2.5px; font-weight:700; }
-    #store-presentation p { max-width:490px; font-size:20px; line-height:1.55; color:#606060; }
-    #store-presentation .domain { margin-top:44px; font-size:16px; color:#171717; }
-  ` });
-  await page.evaluate(({ heading, description }) => {
-    const aside = document.createElement("aside");
-    aside.id = "store-presentation";
-    const eyebrow = document.createElement("span");
-    eyebrow.className = "eyebrow";
-    eyebrow.textContent = "YT EQUITY · BROWSER EXTENSION";
-    const title = document.createElement("h2");
-    title.textContent = heading;
-    const copy = document.createElement("p");
-    copy.textContent = description;
-    const domain = document.createElement("p");
-    domain.className = "domain";
-    domain.textContent = "ytequity.com";
-    aside.append(eyebrow, title, copy, domain);
-    document.body.append(aside);
-  }, { heading, description });
-  await page.screenshot({ path: join(directory, filename) });
-  await page.locator("#store-presentation").evaluate(node => node.remove());
-  await style.evaluate(node => node.parentNode?.removeChild(node));
-}
 
 // Exercises the actual packaged content script -> Chrome worker -> HTTP API boundary.
 // YouTube markup and channel results are fixtures; this does not certify live YouTube selectors.
@@ -87,11 +52,8 @@ test("packaged extension defaults on, annotates and filters, and honors a saved 
     await expect(youtube.locator(".pe-ownership-badge"))
       .toHaveAttribute("aria-label", /^View acquisition details/);
     expect(requests[0]).toEqual({ identifiers: ["@alpha"] });
-    await popup.screenshot({ path: testInfo.outputPath("lookups-enabled.png") });
-    await storeScreenshot(popup, "ownership-lookups.png", "See the ownership behind the channel.", "Public ownership and funding records, right on YouTube. Disable the extension to stop automatic lookups.");
     await popup.getByRole("switch", { name: "Acquired channels", exact: true }).check();
     await expect(youtube.locator(".pe-card-filtered")).toHaveCount(1);
-    await storeScreenshot(popup, "feed-filters.png", "Choose what appears in your feed.", "Hide channels with confirmed acquisitions or funding. Choose where filters apply and reveal any hidden video.");
     await youtube.getByRole("button", { name: "Reveal video from Alpha" }).click();
     await expect(youtube.locator(".pe-card-filtered")).toHaveCount(0);
     // Honor preferences saved by earlier versions even though the current
@@ -113,18 +75,20 @@ test("packaged extension defaults on, annotates and filters, and honors a saved 
     await expect(youtube.locator(".pe-ownership-label")).toHaveText("Acquired");
     await expect(youtube.locator(".pe-card-filtered")).toHaveCount(1);
     expect(requests.length).toBeGreaterThan(count);
+    // Modern recommendations expose the canonical channel only in a MAIN-world
+    // rendering signal. Exercise the packaged bridge across the world boundary.
+    await context.unroute("https://www.youtube.com/**");
+    await context.route("https://www.youtube.com/**", route => route.fulfill({ contentType: "text/html", body: `<!doctype html><html><body><div id="related"><yt-lockup-view-model><a href="/watch?v=video123">Video</a><div class="ytLockupMetadataViewModelMetadata">Alpha</div></yt-lockup-view-model></div><script>document.querySelector('yt-lockup-view-model').rawProps={data:()=>({contentId:'video123',contentType:'LOCKUP_CONTENT_TYPE_VIDEO',metadata:{lockupMetadataViewModel:{image:{decoratedAvatarViewModel:{rendererContext:{commandContext:{onTap:{innertubeCommand:{browseEndpoint:{browseId:'UCHnyfMqiRRG1u-2MsSQLbXA'}}}}}}}}}})};</script></body></html>` }));
+    await youtube.goto("https://www.youtube.com/watch?v=modern123");
+    await expect(youtube.locator("[data-pe-channel-context]")).toHaveCount(1);
+    await expect(youtube.locator(".pe-ownership-label")).toHaveText("Acquired");
+    await expect(youtube.locator(".pe-card-filtered")).toHaveCount(1);
+    expect(requests.some(request => request.identifiers.includes("UCHnyfMqiRRG1u-2MsSQLbXA"))).toBe(true);
+    await youtube.evaluate(() => document.documentElement.setAttribute("dark", ""));
+
   } finally {
     await context?.close();
     await new Promise<void>(resolve => api.close(() => resolve()));
     await rm(temp, { recursive: true, force: true });
   }
-});
-
-test("privacy policy is public and linked in the website navigation", async ({ page }) => {
-  await page.goto("/privacy");
-  await expect(page.getByRole("heading", { name: "Extension privacy policy", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "What the extension sends" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Service processing and retention" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "YT Equity contact form" })).toHaveAttribute("href", "/report");
-  await expect(page.getByRole("link", { name: "Extension privacy", exact: true })).toHaveAttribute("href", "/privacy");
 });

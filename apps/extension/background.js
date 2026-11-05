@@ -1,5 +1,6 @@
 // Firefox loads config.js first in its background document; Chrome uses a worker.
-if (typeof importScripts === "function") importScripts("config.js");
+if (typeof importScripts === "function") importScripts("config.js", "shared.js");
+const messages = YT_EQUITY_SHARED.messages;
 
 const api = globalThis.browser ?? globalThis.chrome;
 const cache = new Map();
@@ -15,9 +16,7 @@ api.storage.onChanged.addListener((changes, area) => {
   }
 });
 
-function validChannel(value) {
-  return value && typeof value.channelId === "string" && typeof value.name === "string" && Array.isArray(value.claims);
-}
+const validChannel = YT_EQUITY_SHARED.validChannel;
 
 function cached(identifier) {
   const entry = cache.get(identifier);
@@ -25,7 +24,7 @@ function cached(identifier) {
     cache.delete(identifier);
     return undefined;
   }
-  return entry.value;
+  return entry;
 }
 
 async function fetchBatch(identifiers) {
@@ -44,6 +43,7 @@ async function fetchBatch(identifiers) {
   const results = new Map();
   for (const item of body.results) {
     if (!item || typeof item.identifier !== "string") continue;
+    if (item.error) { results.set(item.identifier, { kind: "unavailable" }); continue; }
     if (item.channel !== null && !validChannel(item.channel)) continue;
     results.set(item.identifier, item.channel ? { kind: "found", value: item.channel } : { kind: "independent" });
   }
@@ -75,7 +75,7 @@ async function lookupMany(input) {
       );
       pending.set(identifier, itemTask);
       itemTask.then((value) => {
-        if (value.kind !== "unavailable" && generation === consentGeneration) cache.set(identifier, { value, expiresAt: value.expiresAt });
+        if (value.kind !== "unavailable" && generation === consentGeneration) cache.set(identifier, value);
       }).finally(() => {
         if (pending.get(identifier) === itemTask) pending.delete(identifier);
       });
@@ -88,18 +88,18 @@ async function lookupMany(input) {
 }
 
 api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type === "yt-equity:open-support") {
+  if (message?.type === messages.openSupport) {
     api.tabs.create({
       url: "https://www.youtube.com/watch?v=WNGNhItoRh8#yt-equity-thanks",
       active: true
     }).then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
     return true;
   }
-  if (message?.type === "yt-equity:lookup") {
+  if (message?.type === messages.lookup) {
     lookupMany([message.identifier]).then((items) => sendResponse(items[0]?.result ?? { kind: "unavailable" })).catch(() => sendResponse({ kind: "unavailable" }));
     return true;
   }
-  if (message?.type === "yt-equity:lookup-many") {
+  if (message?.type === messages.lookupMany) {
     const identifiers = Array.isArray(message.identifiers) ? message.identifiers : [];
     lookupMany(identifiers).then(sendResponse).catch(() => {
       sendResponse(identifiers.map((identifier) => ({ identifier, result: { kind: "unavailable" } })));

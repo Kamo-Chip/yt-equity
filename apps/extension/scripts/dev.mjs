@@ -26,7 +26,7 @@ async function rebuild() {
 }
 await rebuild();
 watch(root, { recursive: true }, (_event, filename) => {
-  if (!filename || /^(?:dist|node_modules|test|store-assets)[/\\]/.test(filename)) return;
+  if (!filename || /^(?:dist|node_modules|test)[/\\]/.test(filename)) return;
   if (!/\.(?:js|mjs|css|html|json|svg|png)$/.test(filename)) return;
   clearTimeout(timer);
   timer = setTimeout(rebuild, 150);

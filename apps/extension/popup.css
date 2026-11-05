@@ -86,22 +86,27 @@ h1 { margin: 0; font-size: 16px; line-height: 24px; font-weight: 700; letter-spa
 
 .support-dialog {
   width: calc(100% - 32px); max-width: 298px; max-height: calc(100% - 32px);
-  margin: auto; padding: 20px; overflow-y: auto;
-  border: 1px solid var(--line); border-radius: 12px;
+  margin: auto; padding: 22px; overflow-y: auto;
+  border: 1px solid var(--line); border-radius: 16px;
   background: var(--background); color: var(--foreground);
-  box-shadow: 0 8px 32px #0003;
+  box-shadow: 0 20px 60px #0004;
 }
 .support-dialog::backdrop { background: #0006; }
-.support-dialog h2 { margin: 0 0 10px; font-size: 16px; line-height: 24px; }
-.support-dialog p { margin: 0; font-size: 13px; line-height: 1.6; }
+.support-dialog h2 { margin: 16px 0 8px; text-align: center; font-size: 20px; line-height: 26px; letter-spacing: -.025em; }
+.support-dialog p { text-align: center; margin: 0; font-size: 13px; line-height: 1.6; }
 .support-dialog .setting-error:not(:empty) { margin-top: 12px; }
-.support-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.support-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
 .support-dialog-actions button {
-  min-height: 36px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px;
+  flex: 1; min-height: 38px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
   background: var(--background); color: var(--foreground); cursor: pointer;
   font-size: 13px; font-weight: 500;
 }
 .support-dialog-actions button:hover { background: var(--hover); }
-.support-dialog-actions .support-continue { background: var(--primary); border-color: var(--primary); color: var(--background); }
-.support-dialog-actions .support-continue:hover { background: color-mix(in srgb, var(--primary) 90%, var(--background)); }
+.support-dialog-actions .support-continue { background: #fbbf24; border-color: #fbbf24; color: #291800; }
+.support-dialog-actions .support-continue:hover { background: #f5b81b; border-color: #f5b81b; }
 .support-dialog-actions button:disabled { opacity: .5; cursor: wait; }
+
+.support-dialog-icon { display: grid; margin-inline: auto; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: #f59e0b18; color: #b45309; }
+.support-dialog .support-dialog-note { margin-top: 14px; color: var(--muted); font-size: 12px; line-height: 1.65; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .support-dialog-icon { color: #fbbf24; } }
+:root[data-theme='dark'] .support-dialog-icon { color: #fbbf24; }

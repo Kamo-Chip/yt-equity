@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+const graph=await fetch('https://www.ytequity.com/api/v1/ownership-graph').then(r=>{if(!r.ok)throw new Error('Directory unavailable');return r.json()});
+const origin='https://yt-equity-media.kamokhumalo04.workers.dev';
+const url=graph.nodes.find(n=>n.profilePictureUrl?.startsWith(origin+'/'))?.profilePictureUrl;
+assert.ok(url,'Directory must expose a hosted image');const key=new URL(url).pathname.slice(1);
+const get=await fetch(url);assert.equal(get.status,200);assert.match(get.headers.get('content-type'),/^image\//);assert.match(get.headers.get('cache-control'),/immutable/);assert.ok(get.headers.get('etag'));await get.arrayBuffer();
+const head=await fetch(url,{method:'HEAD'});assert.equal(head.status,200);assert.equal((await head.arrayBuffer()).byteLength,0);assert.equal(head.headers.get('etag'),get.headers.get('etag'));
+const conditional=await fetch(url,{headers:{'if-none-match':get.headers.get('etag')}});assert.equal(conditional.status,304);
+for(const method of ['POST','PUT','PATCH','DELETE'])assert.equal((await fetch(url,{method})).status,405);
+for(const path of ['/', '/channels/', '/?list-type=2', '/'+key+'?anything=1','/channels/UC'+'z'.repeat(22)+'/'+'0'.repeat(64)+'.jpg'])assert.equal((await fetch(origin+path)).status,404);
+console.log('Live Worker GET/HEAD/304, immutable caching/ETags, missing objects, listing and writes: passed');

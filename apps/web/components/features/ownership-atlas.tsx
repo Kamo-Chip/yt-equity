@@ -1,34 +1,5 @@
 "use client";
-import "@xyflow/react/dist/style.css";
-import {
-  useCallback,
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import dagre from "@dagrejs/dagre";
-import {
-  Background,
-  Controls,
-  Handle,
-  Position,
-  ReactFlow,
-  type NodeProps,
-  type Node,
-  type Edge,
-  type ReactFlowInstance,
-  BaseEdge,
-  useInternalNode,
-  type EdgeProps,
-} from "@xyflow/react";
-import type { OwnershipGraph } from "@yt-equity/contracts";
-import { ArrowUpRight, RotateCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -39,76 +10,46 @@ import {
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetDescription,
 } from "@/components/ui/sheet";
-import { useRouter } from "next/navigation";
-import { filterOwnershipGraph } from "@/lib/ownership-filter";
-import { OwnershipDetails } from "./ownership-details";
-import { useTheme } from "next-themes";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { GRAPH_TRANSITION_MS, type Appearance } from "@/lib/graph-presence";
+import { useAtlasViewport } from "@/hooks/use-atlas-viewport";
 import { useFluidGraph } from "@/hooks/use-fluid-graph";
-import { firmLogo } from "./firm-logos";
-type Entity = OwnershipGraph["nodes"][number];
-type NodeData = { entity: Entity; kind: "firm" | "channel"; expanded: boolean; appearance?: Appearance };
-type AtlasNode = Node<NodeData>;
-function EntityNode({ data, selected }: NodeProps<AtlasNode>) {
-  const [failed, setFailed] = useState(false);
-  const n = data.entity;
-  const image = n.kind === "firm" ? firmLogo(n.name) : n.profilePictureUrl;
-  return (
-    <div
-      className={`graph-orb ${n.kind} ${selected ? "selected" : ""} ${data.expanded ? "expanded" : ""}`}
-      data-presence={data.appearance?.phase}
-      style={data.appearance ? { transform: `scale(${data.appearance.scale})` } : undefined}
-    >
-      <Handle type="target" position={Position.Left} isConnectable={false} />
-      <div className="orb-image">
-        {image && !failed ? (
-          <img
-            src={image}
-            alt=""
-            draggable={false}
-            onError={() => setFailed(true)}
-          />
-        ) : (
-          <span>{n.name[0]}</span>
-        )}
-      </div>
-      {n.kind === "firm" && <span className="orb-count">{n.channelCount}</span>}
-      <strong className="orb-label">{n.name}</strong>
-      <Handle type="source" position={Position.Right} isConnectable={false} />
-    </div>
-  );
-}
-function FloatingEdge({ source, target, style, selected }: EdgeProps) {
-  const a = useInternalNode(source),
-    b = useInternalNode(target);
-  if (!a || !b) return null;
-  const aw = a.measured.width ?? 84,
-    ah = a.measured.height ?? 84,
-    bw = b.measured.width ?? 52,
-    bh = b.measured.height ?? 52;
-  const ax = a.internals.positionAbsolute.x + aw / 2,
-    ay = a.internals.positionAbsolute.y + ah / 2,
-    bx = b.internals.positionAbsolute.x + bw / 2,
-    by = b.internals.positionAbsolute.y + bh / 2;
-  const distance = Math.hypot(bx - ax, by - ay) || 1,
-    dx = (bx - ax) / distance,
-    dy = (by - ay) / distance;
-  return (
-    <BaseEdge
-      path={`M ${ax + (dx * aw) / 2} ${ay + (dy * ah) / 2} L ${bx - (dx * bw) / 2} ${by - (dy * bh) / 2}`}
-      style={{ ...style, strokeWidth: selected ? 3 : 1.7 }}
-      interactionWidth={20}
-    />
-  );
-}
+import { useIsMobile } from "@/hooks/use-mobile";
+import { buildAtlasLayout, type AtlasNode } from "@/lib/atlas-layout";
+import { GRAPH_TRANSITION_MS } from "@/lib/graph-presence";
+import { filterOwnershipGraph, searchExpandedFirms } from "@/lib/ownership-filter";
+import {
+  Background,
+  Controls,
+  ReactFlow,
+  useNodes,
+  useReactFlow,
+  useStoreApi,
+  type Viewport,
+  type Edge,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import type { OwnershipGraph } from "@yt-equity/contracts";
+import { GraphLoading } from "./loading-states";
+import { GraphState } from "./graph-state";
+import { LoaderCircle, RotateCcw } from "lucide-react";
+import { useTheme } from "next-themes";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  useRef,
+  useTransition,
+} from "react";
+import { edgeTypes, nodeTypes } from "./atlas-nodes";
+import { OwnershipDetails } from "./ownership-details";
 const EMPTY_GRAPH: OwnershipGraph = { nodes: [], edges: [] };
-const edgeTypes = { floating: FloatingEdge };
-const nodeTypes = { entity: EntityNode };
 export function OwnershipAtlas({
   initialGraph,
   initialError = false,
@@ -126,7 +67,7 @@ export function OwnershipAtlas({
       : "all";
   const status =
     statusValue &&
-    ["confirmed", "provisional", "disputed"].includes(statusValue)
+      ["confirmed", "provisional", "disputed"].includes(statusValue)
       ? statusValue
       : "all";
   const setFilter = useCallback((key: string, value: string) => {
@@ -141,6 +82,10 @@ export function OwnershipAtlas({
   const setType = (value: string) => setFilter("type", value);
   const deferredQuery = useDeferredValue(q);
   const router = useRouter();
+  const [retrying, startRetry] = useTransition();
+  const retry = () => startRetry(() => router.refresh());
+  const [resetRequest, setResetRequest] = useState(0);
+  const handledReset = useRef(0);
   const [lastGraph, setLastGraph] = useState(initialGraph);
   useEffect(() => {
     if (initialGraph) setLastGraph(initialGraph);
@@ -165,7 +110,7 @@ export function OwnershipAtlas({
   }>({ q: "", ids: new Set() });
   const actualExpanded = useMemo(() => {
     const result = new Set(expanded);
-    if (deferredQuery.trim()) graph.edges.forEach((e) => result.add(e.source));
+    searchExpandedFirms(graph, deferredQuery).forEach((id) => result.add(id));
     if (searchClosed.q === deferredQuery)
       searchClosed.ids.forEach((id) => result.delete(id));
     return result;
@@ -173,28 +118,15 @@ export function OwnershipAtlas({
   const [interactionRevision, setInteractionRevision] = useState(0);
   const [interactive, setInteractive] = useState(true);
   const [selected, setSelected] = useState<{
-      kind: "node" | "edge";
-      id: string;
-    } | null>(null),
+    kind: "node" | "edge";
+    id: string;
+  } | null>(null),
     [needsReset, setNeedsReset] = useState(false);
   const error = initialError && !initialGraph && !lastGraph;
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const [flowReady, setFlowReady] = useState(false);
   useEffect(() => setMounted(true), []);
-  const flow = useRef<ReactFlowInstance<AtlasNode, Edge> | null>(null),
-    fitted = useRef(false),
-    focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mobile = useIsMobile();
-  useEffect(() => {
-    if (focusTimer.current) clearTimeout(focusTimer.current);
-  }, [q, type]);
-  useEffect(
-    () => () => {
-      if (focusTimer.current) clearTimeout(focusTimer.current);
-    },
-    [],
-  );
   useEffect(() => {
     if (
       selected &&
@@ -204,21 +136,6 @@ export function OwnershipAtlas({
     )
       setSelected(null);
   }, [graph, selected]);
-  useEffect(() => {
-    const focus = () => {
-      if (focusTimer.current) clearTimeout(focusTimer.current);
-      flow.current?.fitView({
-        padding: 0.22,
-        maxZoom: 1,
-        duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? 0
-          : 250,
-      });
-      setNeedsReset(true);
-    };
-    window.addEventListener("atlas-search-submit", focus);
-    return () => window.removeEventListener("atlas-search-submit", focus);
-  }, []);
   const toggle = useCallback(
     (id: string) => {
       setInteractionRevision((value) => value + 1);
@@ -237,129 +154,59 @@ export function OwnershipAtlas({
     },
     [actualExpanded, deferredQuery],
   );
-  const { nodes: seeds, edges } = useMemo(() => {
-    const visibleEdges = graph.edges.filter((e) =>
-      actualExpanded.has(e.source),
-    );
-    const channelIds = new Set(visibleEdges.map((e) => e.target));
-    const visible = graph.nodes
-      .filter((n) => n.kind === "firm" || channelIds.has(n.id))
-      .sort((a, b) => a.id.localeCompare(b.id));
-    const layout = new dagre.graphlib.Graph({ multigraph: true });
-    layout.setGraph({
-      rankdir: "LR",
-      nodesep: 55,
-      ranksep: 155,
-      marginx: 40,
-      marginy: 40,
-    });
-    layout.setDefaultEdgeLabel(() => ({}));
-    visible.forEach((n) =>
-      layout.setNode(n.id, {
-        width: n.kind === "firm" ? 84 : 52,
-        height: n.kind === "firm" ? 84 : 52,
-      }),
-    );
-    visibleEdges.forEach((e) => layout.setEdge(e.source, e.target, {}, e.id));
-    dagre.layout(layout);
-    const roots = fullGraph.nodes
-      .filter((n) => n.kind === "firm")
-      .sort((a, b) => a.id.localeCompare(b.id));
-    const rootPositions = new Map(
-      roots.map((n, i) => [
-        n.id,
-        {
-          x:
-            (mobile ? 160 : 220) +
-            (i % (mobile ? 2 : 3)) * (mobile ? 260 : 420),
-          y: 220 + Math.floor(i / 3) * 420,
-        },
-      ]),
-    );
-    return {
-      nodes: visible.map((n) => {
-        const size = n.kind === "firm" ? 84 : 52;
-        const parents = visibleEdges.filter((e) => e.target === n.id);
-        const parent = parents[0];
-        let p = rootPositions.get(n.id) ?? layout.node(n.id);
-        if (parent) {
-          // Dagre supplies a stable order; spring forces unfold each firm's local cluster.
-          const siblings = [
-            ...new Map(
-              visibleEdges
-                .filter((e) => e.source === parent.source)
-                .map((e) => [e.target, e]),
-            ).values(),
-          ].sort((a, b) => layout.node(a.target).y - layout.node(b.target).y);
-          const index = siblings.findIndex((e) => e.target === n.id),
-            angle =
-              (2 * Math.PI * index) / Math.max(siblings.length, 1) -
-              Math.PI / 2;
-          const centers = [...new Set(parents.map((e) => e.source))].map(
-            (id) => rootPositions.get(id)!,
-          );
-          const center = {
-            x: centers.reduce((sum, c) => sum + c.x, 0) / centers.length,
-            y: centers.reduce((sum, c) => sum + c.y, 0) / centers.length,
-          };
-          const radius = 170 + Math.sqrt(siblings.length) * 17;
-          p = {
-            x: center.x + Math.cos(angle) * radius,
-            y: center.y + Math.sin(angle) * radius,
-          };
-        }
-        return {
-          id: n.id,
-          type: "entity",
-          position: { x: p.x, y: p.y },
-          // Orbs have fixed CSS dimensions. Supplying their geometry lets
-          // connections render before the asynchronous DOM measurement pass.
-          width: size,
-          height: size,
-          handles: [
-            { type: "target" as const, position: Position.Left, x: 0, y: size / 2 },
-            { type: "source" as const, position: Position.Right, x: size, y: size / 2 },
-          ],
-          connectable: false,
-          selected: false,
-          ariaLabel:
-            n.kind === "firm"
-              ? `${n.name}, ${n.channelCount} channels, ${actualExpanded.has(n.id) ? "expanded" : "collapsed"}. Click to toggle.`
-              : n.name,
-          data: {
-            entity: n,
-            kind: n.kind,
-            expanded: actualExpanded.has(n.id),
-          },
-        };
-      }),
-      edges: visibleEdges.map((e) => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        type: "floating",
-        style: {
-          stroke:
-            e.type === "acquisition"
-              ? "var(--graph-acquisition)"
-              : "var(--graph-funding)",
-          strokeWidth: 1.5,
-          strokeDasharray: e.status === "confirmed" ? undefined : "5 4",
-        },
-        labelStyle: { fontSize: 11, fill: "#555" },
-        labelBgStyle: { fill: "#fff" },
-        ariaLabel: `${e.type}, ${e.status}`,
-      })),
-    };
-  }, [graph, actualExpanded, mobile, fullGraph]);
-  const { nodes, edges: animatedEdges, onNodesChange, prepareDrag, startDrag, drag, stopDrag, reset } =
+  const { nodes: seeds, edges } = useMemo(
+    () => buildAtlasLayout(graph, actualExpanded, mobile, fullGraph),
+    [graph, actualExpanded, mobile, fullGraph],
+  );
+  // A roster refresh changes every firm's default anchor. Filters and channel
+  // expansion leave this key alone, preserving the user's local arrangement.
+  const firmRoster = useMemo(
+    () => JSON.stringify(fullGraph.nodes
+      .filter((node) => node.kind === "firm")
+      .map((node) => node.id)
+      .sort()),
+    [fullGraph],
+  );
+
+  const { nodes, edges: animatedEdges, onNodesChange, prepareDrag, startDrag, drag, stopDrag, reset, prepareReset, cancelReset } =
     useFluidGraph<AtlasNode>(
       seeds,
       edges,
-      mobile ? "mobile" : "desktop",
+      `${mobile ? "mobile" : "desktop"}:${firmRoster}`,
       interactionRevision,
       `${deferredQuery}::${type}::${status}`,
     );
+  const onFocus = useCallback(() => setNeedsReset(true), []);
+  const { viewport, rememberViewport, initialReady, flow, fitted, focusTimer, canvas, onGeometryChange, resetViewport, cancelViewportReset } = useAtlasViewport({ nodeCount: nodes.length, mobile, q, type, onFocus });
+  const initializing = !initialReady && !error && graph.nodes.length > 0;
+  useEffect(() => { cancelViewportReset(); }, [q, type, status, mobile, firmRoster, cancelViewportReset]);
+  const resetAll = () => {
+    if (focusTimer.current) clearTimeout(focusTimer.current);
+    cancelViewportReset();
+    prepareReset();
+    setSelected(null);
+    setExpanded(new Set());
+    setSearchClosed({ q: "", ids: new Set() });
+    window.dispatchEvent(new Event("atlas-search-clear"));
+    window.history.replaceState(null, "", "/");
+    setNeedsReset(true);
+    setResetRequest((value) => value + 1);
+  };
+  useEffect(() => {
+    // Wait for URL state and the deferred search to publish the default topology.
+    if (!resetRequest || handledReset.current === resetRequest || q || deferredQuery || type !== "all" || status !== "all") return;
+    handledReset.current = resetRequest;
+    const result = reset();
+    resetViewport(result.nodes, result.duration);
+    void result.finished.then((finished) => {
+      if (finished && handledReset.current === resetRequest) setNeedsReset(false);
+    });
+  }, [resetRequest, q, deferredQuery, type, status, reset, resetViewport]);
+  const interruptReset = () => {
+    handledReset.current = resetRequest;
+    cancelReset();
+    cancelViewportReset();
+  };
   const displayNodes = useMemo(
     () => nodes.map((node) => {
       const isSelected = selected?.kind === "node" && selected.id === node.id;
@@ -383,20 +230,12 @@ export function OwnershipAtlas({
     );
     return { ...position, time: event.timeStamp };
   };
-  useEffect(() => {
-    if (nodes.length && flowReady && !fitted.current && flow.current) {
-      const t = setTimeout(() => {
-        if (fitted.current) return;
-        fitted.current = true;
-        flow.current?.fitView({ padding: 0.18, maxZoom: 1 });
-      }, 50);
-      focusTimer.current = t;
-      return () => clearTimeout(t);
-    }
-  }, [nodes.length, flowReady]);
   return (
     <main
       aria-label="Ownership explorer"
+      aria-busy={initializing}
+      data-graph-ready={initialReady}
+      data-graph-initializing={initializing}
       className="graph-page flex min-h-0 min-w-0 flex-col"
     >
       <div className="flex min-h-0 min-w-0 flex-1">
@@ -415,25 +254,19 @@ export function OwnershipAtlas({
                 variant="outline"
                 size="sm"
                 className="pointer-events-auto"
-                onClick={() => router.refresh()}
+                onClick={retry}
+                disabled={retrying}
               >
-                Retry refresh
+                {retrying && <LoaderCircle className="motion-safe:animate-spin" />}
+                {retrying ? "Retrying…" : "Retry refresh"}
               </Button>
             )}
-            {needsReset && (
+            {(needsReset || q || type !== "all" || status !== "all" || actualExpanded.size > 0 || selected) && (
               <Button
                 variant="outline"
                 size="sm"
                 className="ml-auto pointer-events-auto bg-background shadow-sm"
-                onClick={() => {
-                  if (focusTimer.current) clearTimeout(focusTimer.current);
-                  reset();
-                  focusTimer.current = setTimeout(
-                    () => flow.current?.fitView({ padding: 0.18, maxZoom: 1 }),
-                    50,
-                  );
-                  setNeedsReset(false);
-                }}
+                onClick={resetAll}
               >
                 <RotateCcw />
                 Reset view
@@ -441,8 +274,14 @@ export function OwnershipAtlas({
             )}
           </div>
           <div
+            ref={canvas}
             className="graph-canvas"
+            aria-hidden={initializing || undefined}
+            inert={initializing || error || !graph.nodes.length ? true : undefined}
+            onWheelCapture={interruptReset}
+            onKeyDownCapture={interruptReset}
             onPointerDownCapture={(event) => {
+              interruptReset();
               const target = event.target as Element;
               const id = target.closest<HTMLElement>(".react-flow__node")
                 ?.dataset.id;
@@ -457,6 +296,8 @@ export function OwnershipAtlas({
               nodes={displayNodes}
               edges={displayEdges}
               nodeOrigin={[0.5, 0.5]}
+              defaultViewport={viewport}
+              onViewportChange={rememberViewport}
               onNodesChange={onNodesChange}
               onNodeDragStart={(event, n) => {
                 if (focusTimer.current) clearTimeout(focusTimer.current);
@@ -470,10 +311,6 @@ export function OwnershipAtlas({
               nodeDragThreshold={4}
               edgeTypes={edgeTypes}
               nodeTypes={nodeTypes}
-              onInit={(instance) => {
-                flow.current = instance;
-                setFlowReady(true);
-              }}
               onNodeClick={(_, n) => {
                 if (!interactive || n.data.appearance?.phase === "exiting") return;
                 setSelected({ kind: "node", id: n.id });
@@ -510,6 +347,7 @@ export function OwnershipAtlas({
               colorMode={mounted && resolvedTheme === "dark" ? "dark" : "light"}
               onMoveEnd={(event) => {
                 if (event) {
+                  interruptReset();
                   if (focusTimer.current) clearTimeout(focusTimer.current);
                   setNeedsReset(true);
                 }
@@ -521,8 +359,10 @@ export function OwnershipAtlas({
               minZoom={0.1}
               maxZoom={1.8}
             >
+              <AtlasGeometry viewport={viewport} onChange={onGeometryChange} />
               <Background gap={24} size={1.4} color="var(--graph-grid)" />
               <Controls
+                orientation={mobile ? "horizontal" : "vertical"}
                 showInteractive
                 showFitView
                 fitViewOptions={{ padding: 0.18, maxZoom: 1 }}
@@ -544,7 +384,7 @@ export function OwnershipAtlas({
               />
             </ReactFlow>
           </div>
-          <div className="absolute bottom-4 right-4 flex gap-4 rounded-[20px] border border-border bg-card px-3 py-2 text-xs text-muted-foreground shadow-[var(--surface-shadow)] pointer-events-none">
+          <div className="graph-legend absolute bottom-4 right-4 flex gap-4 rounded-[20px] border border-border bg-card px-3 py-2 text-xs text-muted-foreground shadow-[var(--surface-shadow)] pointer-events-none">
             <span className="flex items-center gap-2">
               <i
                 className="w-5 border-t-2"
@@ -560,30 +400,25 @@ export function OwnershipAtlas({
               Acquisition
             </span>
           </div>
+          <GraphLoading className="graph-loading-overlay absolute inset-0 z-20" />
           {(error || !graph.nodes.length) && (
-            <div className="absolute inset-0 grid place-content-center gap-3 bg-background text-center">
-              <h2 className="font-semibold">
-                {error
-                  ? "Couldn’t load ownership records"
-                  : "No matching relationships"}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {error
-                  ? "Try loading the graph again."
-                  : "Try a different search or clear the filters."}
-              </p>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (error) router.refresh();
-                  else {
-                    window.dispatchEvent(new Event("atlas-search-clear"));
-                    window.history.replaceState(null, "", "/");
-                  }
-                }}
-              >
-                {error ? "Try again" : "Clear filters"}
-              </Button>
+            <div className="absolute inset-0 z-[5] grid place-items-center overflow-auto bg-background px-4 pb-8 pt-24">
+              <GraphState kind={error ? "error" : fullGraph.nodes.length ? "no-matches" : "empty"}>
+                {(error || !!fullGraph.nodes.length) && <Button
+                  variant="outline"
+                  disabled={retrying}
+                  onClick={() => {
+                    if (error) retry();
+                    else {
+                      window.dispatchEvent(new Event("atlas-search-clear"));
+                      window.history.replaceState(null, "", "/");
+                    }
+                  }}
+                >
+                  {retrying && <LoaderCircle className="motion-safe:animate-spin" />}
+                  {error ? retrying ? "Reconnecting…" : "Try again" : "Clear filters"}
+                </Button>}
+              </GraphState>
             </div>
           )}
         </div>
@@ -633,6 +468,27 @@ export function OwnershipAtlas({
     </main>
   );
 }
+// Subscribe inside React Flow's provider so readiness follows actual store
+// geometry and viewport initialization, without waiting a fixed number of frames.
+function AtlasGeometry({ viewport, onChange }: {
+  viewport: Viewport;
+  onChange: (instance: ReturnType<typeof useReactFlow<AtlasNode, Edge>>, nodes: AtlasNode[]) => void;
+}) {
+  const instance = useReactFlow<AtlasNode, Edge>();
+  const nodes = useNodes<AtlasNode>();
+  const store = useStoreApi<AtlasNode, Edge>();
+  const savedViewport = useRef(viewport);
+  useLayoutEffect(() => { savedViewport.current = viewport; }, [viewport]);
+  useLayoutEffect(() => {
+    // React Flow resets its external store when Activity cleans up effects.
+    // Restore the retained camera before its viewport subscription paints.
+    const saved = savedViewport.current;
+    store.setState({ transform: [saved.x, saved.y, saved.zoom] });
+  }, [store]);
+  useLayoutEffect(() => onChange(instance, nodes), [instance, nodes, onChange]);
+  return null;
+}
+
 function Filter({
   label,
   value,
@@ -644,22 +500,21 @@ function Filter({
   onChange: (v: string) => void;
   options: string[];
 }) {
+  const optionLabel = (option: string) => option === "all"
+    ? label === "Record status" ? "All statuses" : "All relationships"
+    : option[0].toUpperCase() + option.slice(1);
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger
         aria-label={label}
         className="w-auto min-w-32 bg-background shadow-sm"
       >
-        <SelectValue />
+        <SelectValue>{optionLabel(value)}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {options.map((o) => (
           <SelectItem value={o} key={o}>
-            {o === "all"
-              ? label === "Record status"
-                ? "All statuses"
-                : "All relationships"
-              : o[0].toUpperCase() + o.slice(1)}
+            {optionLabel(o)}
           </SelectItem>
         ))}
       </SelectContent>

@@ -19,6 +19,11 @@ export function configuredOrigin(value, name, release) {
   return url.origin;
 }
 
+export async function readContentSource() {
+  const files = ["content/state.js", "content/context.js", "content/popup.js", "content/support-dialog.js", "content/cards.js", "content.js"];
+  return `(() => {\n${(await Promise.all(files.map(file => readFile(join(root, file), "utf8")))).join("\n")}\n})();\n`;
+}
+
 export async function buildExtension({ browser = "chrome", release = false, apiUrl, webUrl, outDir } = {}) {
   if (!["chrome", "firefox"].includes(browser)) throw new Error(`Unsupported browser: ${browser}`);
   apiUrl = configuredOrigin(apiUrl ?? (release ? undefined : "http://localhost:4000"), "API_PUBLIC_URL", release);
@@ -32,9 +37,10 @@ export async function buildExtension({ browser = "chrome", release = false, apiU
   manifest.homepage_url = `${webUrl}/`;
   await rm(target, { recursive: true, force: true });
   await mkdir(target, { recursive: true });
-  for (const file of ["content.js", "content.css", "popup.css", "popup.js", "support.js", "background.js"]) {
+  for (const file of ["shared.js", "content.css", "channel-context.js", "popup.css", "popup.js", "support.js", "background.js"]) {
     await cp(join(root, file), join(target, file));
   }
+  await writeFile(join(target, "content.js"), await readContentSource());
   const popup = await readFile(join(root, "popup.html"), "utf8");
   await writeFile(join(target, "popup.html"), popup.replaceAll("__WEB_URL__", webUrl));
   await writeFile(join(target, "config.js"), `globalThis.YT_EQUITY_CONFIG = ${JSON.stringify({ apiUrl, webUrl })};\n`);

@@ -11,7 +11,8 @@
     "db:generate": "pnpm --filter @yt-equity/db db:generate",
     "db:migrate": "pnpm --filter @yt-equity/db db:migrate",
     "db:seed": "pnpm --filter @yt-equity/db db:seed",
-    "db:seed:creator": "pnpm --filter @yt-equity/db db:seed:creator"
+    "db:seed:creator": "pnpm --filter @yt-equity/db db:seed:creator",
+    "test": "pnpm -r --workspace-concurrency=1 --if-present test && node --test scripts/*.test.mjs"
   },
   "engines": {
     "node": ">=20.9.0"

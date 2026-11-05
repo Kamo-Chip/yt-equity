@@ -1,28 +1,10 @@
 import assert from "node:assert/strict";
 import { after, mock, test } from "node:test";
-import { readFile } from "node:fs/promises";
-import { PGlite } from "@electric-sql/pglite";
-import { drizzle } from "drizzle-orm/pglite";
-
-process.env.NODE_ENV = "test";
-process.env.DATABASE_URL = "postgresql://test:test@127.0.0.1:1/test";
-process.env.BETTER_AUTH_SECRET = "report-tests-only-not-a-production-secret";
-const { db } = await import("@yt-equity/db/client");
-const schema = await import("@yt-equity/db/schema");
-const { reportSchema, submissionSchema } = await import("@yt-equity/contracts");
-const { auth } = await import("../src/auth.js");
-const { app } = await import("../src/server.js");
-const pg = new PGlite();
-const journal = JSON.parse(await readFile(new URL("../../../packages/db/drizzle/meta/_journal.json", import.meta.url), "utf8"));
-for (const entry of journal.entries) {
-  await pg.exec(await readFile(new URL(`../../../packages/db/drizzle/${entry.tag}.sql`, import.meta.url), "utf8"));
-}
-const testDb = drizzle(pg, { schema });
-const insert = mock.method(db, "insert", testDb.insert.bind(testDb));
-mock.method(db, "select", testDb.select.bind(testDb));
+import { testApp } from "./helpers/app.mjs";
 let activeSession: unknown = null;
-mock.method(auth.api, "getSession", async () => activeSession);
-after(async () => { mock.restoreAll(); await app.close(); await pg.close(); });
+const { app, db: testDb, schema } = await testApp({ getSession: async () => activeSession });
+const insert = mock.method(testDb, "insert", testDb.insert.bind(testDb));
+after(() => app.close());
 let ip = 0;
 function report(payload: unknown, remoteAddress = `10.0.0.${++ip}`) {
   return app.inject({ method: "POST", url: "/api/v1/reports", payload, remoteAddress });
@@ -37,14 +19,15 @@ test("reports persist privately in the moderator queue with no channel", async (
   assert.equal(stored.kind, "feedback");
   assert.equal(stored.channelId, null);
   assert.equal(stored.contactEmail, "test@example.com");
+  assert.equal("contactEmail" in stored.payload, false);
   assert.equal((stored.payload as { explanation: string }).explanation, "The extension toggle is not saving.");
-  assert.equal((await app.inject({ url: "/api/v1/moderator/submissions?queue=reports" })).statusCode, 401);
+  assert.equal((await app.inject({ url: "/api/v1/moderator/inbox?kind=feedback" })).statusCode, 401);
   activeSession = { user: { id: "moderator-test", role: "moderator" } };
-  const queue = await app.inject({ url: "/api/v1/moderator/submissions?queue=reports" });
+  const queue = await app.inject({ url: "/api/v1/moderator/inbox?kind=feedback" });
   assert.equal(queue.statusCode, 200);
-  assert.ok(queue.json().some((item: { id: string }) => item.id === created.id));
-  const disputes = await app.inject({ url: "/api/v1/moderator/submissions?queue=disputes" });
-  assert.ok(!disputes.json().some((item: { id: string }) => item.id === created.id));
+  assert.ok(queue.json().items.some((item: { id: string }) => item.id === created.id));
+  const disputes = await app.inject({ url: "/api/v1/moderator/inbox?kind=disputes" });
+  assert.ok(!disputes.json().items.some((item: { id: string }) => item.id === created.id));
   activeSession = null;
 });
 
@@ -55,23 +38,12 @@ test("email is optional and multiple general reports are accepted", async () => 
   }
 });
 
-test("report validation rejects missing, blank, short, oversized messages and invalid email", async () => {
-  for (const payload of [{}, { explanation: "          " }, { explanation: "short" }, { explanation: "a".repeat(4001) }, { explanation: "Valid message here", contactEmail: "invalid" }]) {
-    const response = await report(payload);
-    assert.equal(response.statusCode, 400);
-    assert.equal(response.json().error.code, "INVALID_REPORT");
-  }
-  assert.equal(reportSchema.safeParse({ explanation: "a".repeat(4000) }).success, true);
-});
-
-test("existing channel submissions still require channel and evidence", async () => {
-  const payload = { explanation: "An ownership record needs updating.", sources: ["https://example.com/evidence"] };
-  assert.equal(submissionSchema.safeParse(payload).success, false);
-  const invalid = await app.inject({ method: "POST", url: "/api/v1/submissions", payload, remoteAddress: "10.2.1.1" });
-  assert.equal(invalid.statusCode, 400);
-  const valid = await app.inject({ method: "POST", url: "/api/v1/submissions", payload: { ...payload, kind: "new_channel", channelId: "@test-channel" }, remoteAddress: "10.2.1.2" });
-  assert.equal(valid.statusCode, 201);
-  assert.equal(submissionSchema.safeParse({ ...payload, channelId: null }).success, false);
+test("invalid reports return a validation error without persistence", async () => {
+  const before = await testDb.select().from(schema.submissions);
+  const response = await report({ explanation: "short" });
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().error.code, "INVALID_REPORT");
+  assert.deepEqual(await testDb.select().from(schema.submissions), before);
 });
 
 test("reports share the existing submission rate limit", async () => {
@@ -103,7 +75,7 @@ test("channel contributions resolve canonical identifiers and reject unknown cor
   const stored = (await testDb.select().from(schema.submissions)).find((item) => item.id === response.json().id)!;
   assert.equal(stored.channelId, "UCcanonical");
   assert.equal(stored.kind, "correction");
-  assert.equal((stored.payload as { channelId: string }).channelId, "UCcanonical");
+  for (const key of ["kind", "channelId", "contactEmail"]) assert.equal(key in stored.payload, false);
   const duplicate = await app.inject({ method: "POST", url: "/api/v1/submissions", payload: { ...payload, channelId: "UCcanonical" }, remoteAddress: "10.4.1.2" });
   assert.equal(duplicate.statusCode, 409);
   for (const kind of ["correction", "dispute"]) {

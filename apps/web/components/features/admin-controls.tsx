@@ -1,22 +1,17 @@
 "use client";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { toast } from "sonner";
 import {
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
-  Search,
-  X,
-} from "lucide-react";
-import { adminLocation, type AdminSection } from "@/lib/admin-query";
-import { ApiError } from "@/lib/api";
-import { mutateAdmin } from "@/lib/workspace-mutation";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -24,43 +19,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAdminNavigation } from "@/hooks/use-admin-navigation";
+import { adminLocation, type AdminSection } from "@/lib/admin-query";
+import { ApiError } from "@/lib/api";
+import { mutateAdmin } from "@/lib/workspace-mutation";
 import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-} from "@/components/ui/pagination";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogAction,
-  AlertDialogCancel,
-} from "@/components/ui/alert-dialog";
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Search,
+  X
+} from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
+import { Pager } from "./workspace-pager";
 
-function useAdminNavigation(section: AdminSection) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const update = useCallback(
-    (changes: Record<string, string | null>, replace = false) => {
-      const params = new URLSearchParams(window.location.search);
-      for (const [name, value] of Object.entries(changes)) {
-        const key = section + name[0].toUpperCase() + name.slice(1);
-        value === null ? params.delete(key) : params.set(key, value);
-      }
-      startTransition(() =>
-        router[replace ? "replace" : "push"](
-          "/admin" + (params.size ? "?" + params : ""),
-          { scroll: false },
-        ),
-      );
-    },
-    [router, section],
-  );
-  return { pending, update };
-}
 export function AdminTableControls({ section }: { section: AdminSection }) {
   const params = useSearchParams();
   const state = adminLocation(new URLSearchParams(params))[section];
@@ -120,7 +94,7 @@ export function AdminTableControls({ section }: { section: AdminSection }) {
             aria-label="Invitation status"
             className="h-9 w-auto min-w-36"
           >
-            <SelectValue />
+            <SelectValue>{status === "all" ? "All statuses" : status[0].toUpperCase() + status.slice(1)}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {["all", "pending", "accepted", "expired", "revoked"].map(
@@ -207,63 +181,9 @@ export function AdminPager({
   total: number;
 }) {
   const { pending, update } = useAdminNavigation(section);
-  const pages = Math.max(1, Math.ceil(total / pageSize));
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-xs text-muted-foreground">
-      <span role="status">
-        {total} record{total === 1 ? "" : "s"} · Page {page} of {pages}
-      </span>
-      <div className="flex items-center gap-3">
-        <Select
-          value={String(pageSize)}
-          disabled={pending}
-          onValueChange={(value) => update({ pageSize: value, page: null })}
-        >
-          <SelectTrigger
-            aria-label="Rows per page"
-            className="h-8 w-auto text-xs"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {[...new Set([25, 50, 100, pageSize])]
-              .sort((a, b) => a - b)
-              .map((size) => (
-                <SelectItem key={size} value={String(size)}>
-                  {size} per page
-                </SelectItem>
-              ))}
-          </SelectContent>
-        </Select>
-        <Pagination className="mx-0 w-auto">
-          <PaginationContent>
-            <PaginationItem>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Previous page"
-                disabled={pending || page <= 1}
-                onClick={() => update({ page: String(page - 1) })}
-              >
-                <ChevronLeft />
-              </Button>
-            </PaginationItem>
-            <PaginationItem>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Next page"
-                disabled={pending || page >= pages}
-                onClick={() => update({ page: String(page + 1) })}
-              >
-                <ChevronRight />
-              </Button>
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      </div>
-    </div>
-  );
+  return <Pager page={page} pageSize={pageSize} total={total} pending={pending}
+    onChange={page => update({ page: String(page) })}
+    onPageSizeChange={pageSize => update({ pageSize: String(pageSize), page: null })} />;
 }
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError ? error.message : fallback;

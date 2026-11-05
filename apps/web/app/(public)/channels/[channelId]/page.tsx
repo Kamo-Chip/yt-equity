@@ -1,16 +1,31 @@
+import type { Metadata } from "next";
+import { publicMetadata, privateRobots } from "@/lib/metadata";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { getPublicChannel } from "@/lib/public-data";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { OwnershipEvidence } from "@/components/features/ownership-evidence";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Card,
   CardHeader,
   CardTitle,
   CardContent,
-  CardDescription,
 } from "@/components/ui/card";
+export async function generateMetadata({ params }: {
+  params: Promise<{ channelId: string }>;
+}): Promise<Metadata> {
+  const { channelId } = await params;
+  const entity = await getPublicChannel(channelId);
+  if (!entity) return { title: "Channel not found", robots: privateRobots };
+  return publicMetadata(
+    entity.name,
+    `Research ${entity.name}’s ownership and funding.`,
+    `/channels/${encodeURIComponent(entity.channelId)}`,
+  );
+}
+
 export default async function ChannelPage({
   params,
   searchParams,
@@ -38,15 +53,12 @@ export default async function ChannelPage({
           Ownership graph
         </Link>
       </Button>
-      <div className="mb-6 flex items-center gap-4">
-        {channel?.profilePictureUrl && (
-          <img
-            className="size-16 rounded-full object-cover"
-            src={channel.profilePictureUrl}
-            alt=""
-          />
-        )}
-        <div>
+      <div className="profile-identity mb-6 flex items-center gap-4">
+        <Avatar className="size-16 border">
+          <AvatarImage src={channel?.profilePictureUrl} alt="" className="object-cover" />
+          <AvatarFallback className="text-xl font-semibold">{(channel?.name ?? identifier)[0]}</AvatarFallback>
+        </Avatar>
+        <div className="min-w-0">
           <p className="text-xs text-muted-foreground">YouTube channel</p>
           <h1 className="!mb-1">{channel?.name ?? identifier}</h1>
           <p className="text-sm text-muted-foreground">
@@ -63,21 +75,12 @@ export default async function ChannelPage({
       <Card className="mb-6 shadow-none">
         <CardHeader>
           <CardTitle>Ownership records</CardTitle>
-          <CardDescription>
-            Published relationships and supporting evidence.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           {channel?.claims.length ? (
             <div className="divide-y">
               {channel.claims.map((claim) => (
                 <article className="py-5 first:pt-0 last:pb-0" key={claim.id}>
-                  <div className="mb-3 flex flex-wrap gap-2">
-                    <Badge variant="secondary">
-                      {claim.type === "funding" ? "Funding" : "Acquisition"}
-                    </Badge>
-                    <Badge variant="outline">{claim.status}</Badge>
-                  </div>
                   <h2 className="!text-base">
                     {claim.type === "funding" ? "Funded by" : "Acquired by"}{" "}
                     {claim.firm ? (
@@ -91,33 +94,7 @@ export default async function ChannelPage({
                       "an undisclosed firm"
                     )}
                   </h2>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {claim.confidence}% confidence
-                    {claim.announcedAt
-                      ? " · Announced " +
-                        new Date(claim.announcedAt).toLocaleDateString(
-                          "en-ZA",
-                          { timeZone: "Africa/Johannesburg" },
-                        )
-                      : ""}
-                  </p>
-                  <ul className="mt-4 grid gap-2">
-                    {claim.sources.map((source) => (
-                      <li key={source.url} className="text-sm">
-                        <a
-                          className="break-words text-blue-700 dark:text-blue-400 hover:underline"
-                          href={source.url}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {source.title ?? source.publisher ?? source.url} ↗
-                        </a>
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          {source.tier}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                  <OwnershipEvidence record={claim} />
                 </article>
               ))}
             </div>
@@ -128,28 +105,28 @@ export default async function ChannelPage({
           )}
         </CardContent>
       </Card>
-      <div className="flex flex-wrap gap-3">
-        <Button asChild variant="outline">
+      <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm">
+        <Button asChild variant="link" className="h-auto p-0 text-muted-foreground">
           <Link
             href={`/report/channel?${new URLSearchParams({ channelId: channel?.channelId ?? identifier, contribution: "report" })}`}
           >
-            Report this channel
+            Report channel
           </Link>
         </Button>
         {channel && (
           <>
-            <Button asChild variant="outline">
+            <Button asChild variant="link" className="h-auto p-0 text-muted-foreground">
               <Link
                 href={`/report/channel?${new URLSearchParams({ channelId: channel.channelId, contribution: "correction" })}`}
               >
                 Suggest an update
               </Link>
             </Button>
-            <Button asChild variant="outline">
+            <Button asChild variant="link" className="h-auto p-0 text-muted-foreground">
               <Link
                 href={`/report/channel?${new URLSearchParams({ channelId: channel.channelId, contribution: "dispute" })}`}
               >
-                Dispute this ownership record
+                Dispute record
               </Link>
             </Button>
           </>

@@ -535,7 +535,23 @@
           "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "evidence_claim_id_idx": {
+          "name": "evidence_claim_id_idx",
+          "columns": [
+            {
+              "expression": "claim_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "evidence_claim_id_claims_id_fk": {
           "name": "evidence_claim_id_claims_id_fk",
@@ -614,12 +630,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "reviewer_id": {
-          "name": "reviewer_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "decision": {
           "name": "decision",
           "type": "submission_status",
@@ -639,6 +649,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "moderator_id": {
+          "name": "moderator_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
         }
       },
       "indexes": {},
@@ -768,7 +784,7 @@
           "name": "channel_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "payload": {
           "name": "payload",
@@ -798,7 +814,35 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "submissions_pending_queue_idx": {
+          "name": "submissions_pending_queue_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -830,7 +874,7 @@
         },
         "role": {
           "name": "role",
-          "type": "reviewer_role",
+          "type": "workspace_role",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": false
@@ -925,6 +969,83 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
+    },
+    "public.moderator_invitations": {
+      "name": "moderator_invitations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invited_by": {
+          "name": "invited_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "accepted_at": {
+          "name": "accepted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_sent_at": {
+          "name": "last_sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "moderator_invitations_email_key": {
+          "name": "moderator_invitations_email_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -955,14 +1076,6 @@
         "community"
       ]
     },
-    "public.reviewer_role": {
-      "name": "reviewer_role",
-      "schema": "public",
-      "values": [
-        "reviewer",
-        "admin"
-      ]
-    },
     "public.submission_status": {
       "name": "submission_status",
       "schema": "public",
@@ -970,6 +1083,14 @@
         "pending",
         "approved",
         "rejected"
+      ]
+    },
+    "public.workspace_role": {
+      "name": "workspace_role",
+      "schema": "public",
+      "values": [
+        "moderator",
+        "admin"
       ]
     }
   },

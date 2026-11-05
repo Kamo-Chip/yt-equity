@@ -2,6 +2,8 @@ import { defineConfig } from "@playwright/test";
 const webPort = Number(process.env.PLAYWRIGHT_WEB_PORT ?? 3100);
 const apiPort = Number(process.env.PLAYWRIGHT_API_PORT ?? 4101);
 const production = process.env.PLAYWRIGHT_PRODUCTION === "1";
+const distDir = process.env.PLAYWRIGHT_DIST_DIR ?? ".next-qa";
+if (!/^[a-zA-Z0-9._/-]+$/.test(distDir)) throw new Error("Invalid Playwright build directory");
 export default defineConfig({
   testDir: "./test/e2e",
   fullyParallel: false,
@@ -22,7 +24,7 @@ export default defineConfig({
     },
     {
       command:
-        `API_INTERNAL_URL=http://127.0.0.1:${apiPort} NEXT_DIST_DIR=.next-qa pnpm exec next ${production ? "start" : "dev"} --port ${webPort}`,
+        `API_INTERNAL_URL=http://127.0.0.1:${apiPort} NEXT_DIST_DIR=${distDir} pnpm exec next ${production ? "start" : "dev"} --port ${webPort}`,
       url: `http://127.0.0.1:${webPort}`,
       reuseExistingServer: !process.env.CI,
       timeout: 120000,

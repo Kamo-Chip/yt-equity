@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 
-const script = await readFile(new URL("../background.js", import.meta.url), "utf8");
+const shared = await readFile(new URL("../shared.js", import.meta.url), "utf8");
+const script = shared + await readFile(new URL("../background.js", import.meta.url), "utf8");
 
 for (const firefox of [false, true]) {
   test(`content support opens the same normal active tab as the popup (${firefox ? "Firefox" : "Chrome"})`, async () => {

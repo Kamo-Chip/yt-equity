@@ -17,7 +17,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -43,7 +42,7 @@ export function EntityEditor({
   const initial: Record<string, string> = Object.fromEntries(
     (kind === "channels"
       ? ["name", "channelId", "handle", "profilePictureUrl"]
-      : ["name", "website"]
+      : ["name", "website", "profilePictureUrl", "profilePictureBackground"]
     ).map((key) => [key, String(record?.[key as keyof typeof record] ?? "")]),
   );
   const [values, setValues] = useState(initial),
@@ -82,7 +81,7 @@ export function EntityEditor({
             ? Object.fromEntries(
                 (kind === "channels"
                   ? ["handle", "profilePictureUrl"]
-                  : ["website"]
+                  : ["website", "profilePictureUrl", "profilePictureBackground"]
                 )
                   .filter((key) => !values[key].trim())
                   .map((key) => [key, null]),
@@ -123,6 +122,7 @@ export function EntityEditor({
     handle: "Handle (optional)",
     profilePictureUrl: "Profile image URL (optional)",
     website: "Website (optional)",
+    profilePictureBackground: "Image background color (optional, e.g. #171717)",
   };
   return (
     <>
@@ -132,14 +132,11 @@ export function EntityEditor({
           if (!open) close();
         }}
       >
-        <DialogContent>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>
               {record ? "Edit" : "Create"} {title}
             </DialogTitle>
-            <DialogDescription>
-              Manage {title} details used throughout the directory.
-            </DialogDescription>
           </DialogHeader>
           <form onSubmit={save}>
             <fieldset disabled={busy} className="grid gap-4">

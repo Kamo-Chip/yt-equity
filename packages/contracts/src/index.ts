@@ -17,12 +17,19 @@ export const submissionKindSchema = z.enum([
   "dispute",
   "source",
 ]);
-export const channelIdentifierSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(120)
-  .regex(/^(UC[a-zA-Z0-9_-]+|@[a-zA-Z0-9._-]+|[a-zA-Z0-9._-]+)$/);
+export function normalizeChannelIdentifier(value: string) {
+  try { return decodeURIComponent(value).trim().normalize("NFC"); }
+  catch { return value.trim().normalize("NFC"); }
+}
+export const channelIdentifierSchema = z.preprocess(
+  value => typeof value === "string" ? normalizeChannelIdentifier(value) : value,
+  z.string().min(1).max(120).regex(/^(UC[a-zA-Z0-9_-]+|@?[\p{L}\p{M}\p{N}._-]+)$/u),
+);
+
+export const channelHandleSchema = z.preprocess(
+  value => typeof value === "string" ? normalizeChannelIdentifier(value) : value,
+  z.string().min(1).max(120).regex(/^@[\p{L}\p{M}\p{N}._-]+$/u),
+);
 
 export const sourceSchema = z.object({
   url: z.string().url().max(2048),
@@ -57,14 +64,6 @@ export const reportSchema = z.object({
 });
 export type ReportInput = z.infer<typeof reportSchema>;
 
-export const directoryQuerySchema = z.object({
-  q: z.string().trim().max(120).optional(),
-  firm: z.string().trim().max(120).optional(),
-  evidenceTier: evidenceTierSchema.optional(),
-  status: claimStatusSchema.optional(),
-  type: claimTypeSchema.optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-});
 export const ownershipGraphQuerySchema = z.object({
   q: z.string().trim().max(120).optional(),
   evidenceTier: evidenceTierSchema.optional(),
@@ -73,7 +72,7 @@ export const ownershipGraphQuerySchema = z.object({
 });
 export const channelLookupRequestSchema = z
   .object({
-    identifiers: z.array(channelIdentifierSchema).min(1).max(100),
+    identifiers: z.array(z.string().max(480)).min(1).max(100),
   })
   .transform(({ identifiers }) => ({ identifiers: [...new Set(identifiers)] }));
 export const moderationDecisionSchema = z.object({
@@ -82,11 +81,13 @@ export const moderationDecisionSchema = z.object({
 });
 export const channelEditorSchema = z.object({
   channelId: channelIdentifierSchema,
-  handle: z.string().trim().max(120).optional(),
+  handle: channelHandleSchema.optional(),
   name: z.string().trim().min(1).max(240),
   profilePictureUrl: z.string().url().optional(),
 });
 export const firmEditorSchema = z.object({
+  profilePictureUrl: z.string().url().optional(),
+  profilePictureBackground: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use a six-digit hex color").optional(),
   name: z.string().trim().min(1).max(240),
   website: z.string().url().optional(),
 });
@@ -96,33 +97,17 @@ export const channelUpdateSchema = channelEditorSchema.partial().extend({
 });
 export const firmUpdateSchema = firmEditorSchema
   .partial()
-  .extend({ website: firmEditorSchema.shape.website.nullable() });
-export const claimEditorSchema = z.object({
-  channelId: z.string().uuid(),
-  firmId: z.string().uuid().optional(),
-  type: claimTypeSchema,
-  status: claimStatusSchema,
-  confidence: z.number().int().min(0).max(100),
-  announcedAt: z.string().datetime().optional(),
-  published: z.boolean().default(false),
-});
-export const evidenceEditorSchema = sourceSchema.extend({
-  claimId: z.string().uuid(),
-});
-
+  .extend({ website: firmEditorSchema.shape.website.nullable(), profilePictureUrl: firmEditorSchema.shape.profilePictureUrl.nullable(), profilePictureBackground: firmEditorSchema.shape.profilePictureBackground.nullable() });
 export type ClaimType = z.infer<typeof claimTypeSchema>;
 export type ClaimStatus = z.infer<typeof claimStatusSchema>;
 export type EvidenceTier = z.infer<typeof evidenceTierSchema>;
 export type Source = z.infer<typeof sourceSchema>;
 export type SubmissionInput = z.infer<typeof submissionSchema>;
-export type DirectoryQuery = z.infer<typeof directoryQuerySchema>;
 export type OwnershipGraphQuery = z.infer<typeof ownershipGraphQuerySchema>;
 export type ChannelLookupRequest = z.infer<typeof channelLookupRequestSchema>;
 export type ModerationDecision = z.infer<typeof moderationDecisionSchema>;
 export type ChannelEditor = z.infer<typeof channelEditorSchema>;
 export type FirmEditor = z.infer<typeof firmEditorSchema>;
-export type ClaimEditor = z.infer<typeof claimEditorSchema>;
-export type EvidenceEditor = z.infer<typeof evidenceEditorSchema>;
 export type ChannelEasterEgg = { emoji: string; message: string };
 export type PublicChannel = {
   easterEgg?: ChannelEasterEgg;
@@ -135,7 +120,7 @@ export type PublicChannel = {
     id: string;
     type: ClaimType;
     status: ClaimStatus;
-    firm?: { id: string; name: string; website?: string };
+    firm?: { id: string; name: string; website?: string; profilePictureUrl?: string; profilePictureBackground?: string };
     announcedAt?: string;
     confidence: number;
     sources: Source[];
@@ -158,9 +143,12 @@ export type ChannelLookupResponse = {
   results: Array<{
     identifier: string;
     channel: ChannelOwnershipSummary | null;
+    error?: { code: "INVALID_IDENTIFIER" };
   }>;
 };
 export type PublicFirm = {
+  profilePictureUrl?: string;
+  profilePictureBackground?: string;
   id: string;
   name: string;
   website?: string;
@@ -181,6 +169,9 @@ export type OwnershipGraph = {
         kind: "firm";
         name: string;
         website?: string;
+        profilePictureUrl?: string;
+        profilePictureBackground?: string;
+        undisclosed?: boolean;
         channelCount: number;
       }
     | {

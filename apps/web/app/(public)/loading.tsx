@@ -1,1 +1,1 @@
-export { GraphSkeleton as default } from "@/components/features/loading-states";
+export { PageSkeleton as default } from "@/components/features/loading-states";

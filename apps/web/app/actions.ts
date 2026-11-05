@@ -1,7 +1,8 @@
 "use server";
 import { reportSchema, submissionSchema } from "@yt-equity/contracts";
+import { publicMutation } from "../lib/public-mutation";
 import { z } from "zod";
-import { getChannel } from "../lib/api";
+import { getChannel } from "../lib/public-api";
 
 export type ActionState = {
   ok: boolean;
@@ -94,14 +95,7 @@ export async function submitContribution(
       channelId: channel?.channelId ?? parsed.data.channelId,
       kind: channel ? parsed.data.kind : "new_channel",
     };
-    const response = await fetch(
-      `${process.env.API_INTERNAL_URL ?? "http://localhost:4000"}/api/v1/submissions`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      },
-    );
+    const response = await publicMutation("/api/v1/submissions", payload);
     if (response.status === 409)
       return {
         ok: false,
@@ -158,15 +152,7 @@ export async function submitReport(
       values,
     };
   try {
-    const response = await fetch(
-      `${(process.env.API_INTERNAL_URL ?? "http://localhost:4000").replace(/\/$/, "")}/api/v1/reports`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(parsed.data),
-        cache: "no-store",
-      },
-    );
+    const response = await publicMutation("/api/v1/reports", parsed.data);
     if (response.ok)
       return {
         ok: true,

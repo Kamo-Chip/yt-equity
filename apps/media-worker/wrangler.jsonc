@@ -1,0 +1,9 @@
+{
+  "name": "yt-equity-media",
+  "account_id": "faea83ac23bc33c61407433aa6d526d7",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-05",
+  "workers_dev": true,
+  "preview_urls": false,
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "yt-equity-media" }]
+}
