@@ -15,10 +15,10 @@ import { snapshotCache } from "./snapshot-cache.js";
 export async function buildApp() {
   const app = Fastify({
     logger: process.env.NODE_ENV === "test" ? false : {
-      // Magic-link verification carries a token in the query string.
+      // Omit client addresses and query strings (magic links contain tokens).
       serializers: {
         req(request) {
-          return { method: request.method, url: request.url?.split("?")[0], hostname: request.hostname, remoteAddress: request.ip };
+          return { method: request.method, url: request.url?.split("?")[0], hostname: request.hostname };
         },
       },
       redact: ["req.headers.authorization", "req.headers.cookie", "res.headers.set-cookie"],

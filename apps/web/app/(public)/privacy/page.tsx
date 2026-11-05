@@ -27,9 +27,10 @@ export default function PrivacyPage() {
           without syncing.
         </li>
         <li>
-          Our servers and hosting providers receive your IP address and connection
-          details. Service logs may retain these; contact us for retention details
-          or deletion requests.
+          Servers receive your IP address to deliver responses. Our application
+          request logs do not record it. Hosting providers may retain IP addresses
+          and connection details in their own service logs; contact us for retention
+          details or deletion requests.
         </li>
         <li>
           Data is used to provide and secure the service, never sold or used for
