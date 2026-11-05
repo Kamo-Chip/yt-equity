@@ -738,12 +738,13 @@ html[data-theme-transition]::view-transition-new(theme-toggle-icon) {
   outline-offset: -3px;
 }
 
-/* Let the canvas continue behind the floating header and navigation rail. */
-.app-body:has(.graph-page) {
+/* Only the visible route's root canvas may overlap the header. Next Activity
+   retains inactive pages with display: none, including their nested loaders. */
+.app-body:has(> [data-slot="sidebar-inset"] > .graph-page:not([style*="display: none"])) {
   margin-top: calc(-1 * var(--app-header-offset));
   isolation: isolate;
 }
-.app-body:has(.graph-page) > [data-slot="sidebar"] > [data-slot="sidebar-gap"] {
+.app-body:has(> [data-slot="sidebar-inset"] > .graph-page:not([style*="display: none"])) > [data-slot="sidebar"] > [data-slot="sidebar-gap"] {
   width: 0;
 }
 .canvas-toolbar {
@@ -1052,26 +1053,51 @@ html[data-theme-transition]::view-transition-new(theme-toggle-icon) {
   overscroll-behavior: contain;
   overflow-wrap: anywhere;
 }
+/* The class survives consumers overriding SheetContent's data-slot (mobile navigation). */
+.sheet-motion,
 [data-slot="dialog-content"],
 [data-slot="alert-dialog-content"],
-[data-slot="sheet-content"],
 [data-slot="dialog-overlay"],
+[data-slot="alert-dialog-overlay"],
 [data-slot="sheet-overlay"] {
   animation-duration: var(--motion-panel);
+  animation-timing-function: var(--motion-ease);
 }
-.graph-detail,
-.auth-card,
-.page > header {
-  animation: surface-arrive var(--motion-panel) var(--motion-ease) both;
+[data-slot="popover-content"],
+[data-slot="select-content"],
+[data-slot="tooltip-content"] {
+  animation-duration: var(--motion-fast);
+  animation-timing-function: var(--motion-ease);
 }
-.graph-detail { animation-name: detail-arrive; }
-@keyframes surface-arrive {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
+:is(.sheet-motion, [data-slot="dialog-content"], [data-slot="alert-dialog-content"],
+  [data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"], [data-slot="sheet-overlay"])[data-state="closed"] {
+  animation-duration: var(--motion-fast);
+}
+.sheet-motion {
+  --sheet-motion-x: 0px;
+  --sheet-motion-y: 0px;
+  animation-fill-mode: both;
+}
+.sheet-motion[data-motion-side="left"] { --sheet-motion-x: -100%; }
+.sheet-motion[data-motion-side="right"] { --sheet-motion-x: 100%; }
+.sheet-motion[data-motion-side="top"] { --sheet-motion-y: -100%; }
+.sheet-motion[data-motion-side="bottom"] { --sheet-motion-y: 100%; }
+.sheet-motion[data-state="open"] { animation-name: sheet-enter; }
+.sheet-motion[data-state="closed"] { animation-name: sheet-exit; }
+@keyframes sheet-enter {
+  from { opacity: 0; transform: translate3d(var(--sheet-motion-x), var(--sheet-motion-y), 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes sheet-exit {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to { opacity: 0; transform: translate3d(var(--sheet-motion-x), var(--sheet-motion-y), 0); }
+}
+.graph-detail {
+  animation: detail-arrive var(--motion-panel) var(--motion-ease) both;
 }
 @keyframes detail-arrive {
-  from { opacity: 0; transform: translateX(6px); }
-  to { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .page :is(h1, h2, p, a),
 .drawer-identity { overflow-wrap: anywhere; }

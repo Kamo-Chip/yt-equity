@@ -3,6 +3,7 @@ import { privateRobots } from "@/lib/metadata";
 import Link from "next/link";
 import Image from "next/image";
 import { ThemeToggle } from "@/components/features/theme-provider";
+import { AuthPageContent } from "@/components/features/page-motion";
 export const metadata: Metadata = { robots: privateRobots };
 
 export default function AuthLayout({
@@ -19,9 +20,9 @@ export default function AuthLayout({
         </Link>
         <ThemeToggle />
       </header>
-      <div className="mx-auto w-full max-w-[480px] px-5 pt-8 md:pt-16">
+      <AuthPageContent>
         {children}
-      </div>
+      </AuthPageContent>
     </div>
   );
 }

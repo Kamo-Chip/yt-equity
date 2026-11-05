@@ -1,4 +1,5 @@
 "use client";
+import { useOverlayExit } from "@/hooks/use-overlay-exit";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,19 +55,23 @@ export function RelationshipEditor({
   submission,
   channels,
   firms,
-  onClose,
-  onSaved,
+  onClose: completeClose,
+  onSaved: completeSave,
 }: RelationshipDraftProps) {
+  const exit = useOverlayExit();
+  const onClose = () => exit.close(completeClose);
+  const onSaved = () => exit.close(completeSave);
   const { data, busy, errors, failure, confirm, setConfirm, navigation, close, change, save, archive, channelId, firmId, channelOptions, firmOptions, channelOpen, setChannelOpen, channelSearch, setChannelSearch, firmOpen, setFirmOpen, firmSearch, setFirmSearch, channelLookup, firmLookup, sourceChange } = useRelationshipDraft({ record, submission, channels, firms, onClose, onSaved });
   return (
     <>
       <Sheet
-        open
+        open={exit.open}
         onOpenChange={(open) => {
           if (!open) close();
         }}
       >
         <SheetContent
+          onAnimationEnd={exit.onAnimationEnd} onCloseAutoFocus={exit.onCloseAutoFocus}
           aria-describedby={undefined}
           className="w-full gap-0 p-0 sm:max-w-[680px]"
           onInteractOutside={(e) => {

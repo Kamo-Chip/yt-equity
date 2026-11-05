@@ -1,4 +1,5 @@
 "use client";
+import { useOverlayExit } from "@/hooks/use-overlay-exit";
 import { useUnsavedNavigation } from "@/hooks/use-unsaved-navigation";
 import { useState } from "react";
 import {
@@ -31,14 +32,17 @@ import {
 export function EntityEditor({
   kind,
   record,
-  onClose,
-  onSaved,
+  onClose: completeClose,
+  onSaved: completeSave,
 }: {
   kind: "channels" | "firms";
   record?: ModeratorChannel | ModeratorFirm;
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const exit = useOverlayExit();
+  const onClose = () => exit.close(completeClose);
+  const onSaved = () => exit.close(completeSave);
   const initial: Record<string, string> = Object.fromEntries(
     (kind === "channels"
       ? ["name", "channelId", "handle", "profilePictureUrl"]
@@ -127,12 +131,12 @@ export function EntityEditor({
   return (
     <>
       <Dialog
-        open
+        open={exit.open}
         onOpenChange={(open) => {
           if (!open) close();
         }}
       >
-        <DialogContent aria-describedby={undefined}>
+        <DialogContent onAnimationEnd={exit.onAnimationEnd} onCloseAutoFocus={exit.onCloseAutoFocus} aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>
               {record ? "Edit" : "Create"} {title}

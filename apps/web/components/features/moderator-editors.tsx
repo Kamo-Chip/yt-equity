@@ -1,4 +1,5 @@
 "use client";
+import { useOverlayExit } from "@/hooks/use-overlay-exit";
 import {
   Sheet,
   SheetContent,
@@ -28,6 +29,7 @@ export function EditorSheet({
   title: string;
   children: React.ReactNode;
 }) {
+  const exit = useOverlayExit();
   const { update } = useModeratorNavigation();
   const params = useSearchParams();
   const [mounted, setMounted] = useState(false);
@@ -66,13 +68,13 @@ export function EditorSheet({
   }
   return (
     <Sheet
-      open
+      open={exit.open}
       onOpenChange={(open) => {
         if (!open)
-          update({ edit: null, source: null, entity: null, entityId: null });
+          exit.close(() => update({ edit: null, source: null, entity: null, entityId: null }));
       }}
     >
-      <SheetContent className="w-full sm:max-w-2xl">
+      <SheetContent onAnimationEnd={exit.onAnimationEnd} onCloseAutoFocus={exit.onCloseAutoFocus} className="w-full sm:max-w-2xl">
         <SheetHeader>
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>Manage directory records.</SheetDescription>

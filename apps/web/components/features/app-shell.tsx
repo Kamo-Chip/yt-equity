@@ -32,6 +32,7 @@ import {
   SidebarInset,
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "./theme-provider";
+import { PageMotion } from "./page-motion";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -89,6 +90,7 @@ function ShellContent({
   role?: "moderator" | "admin";
 }) {
   const [signingOut, setSigningOut] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
   const supportCancelRef = useRef<HTMLButtonElement>(null);
   const { state, isMobile } = useSidebar();
   const workspace = variant === "workspace";
@@ -265,7 +267,8 @@ function ShellContent({
             </SidebarFooter>
           )}
         </Sidebar>
-        <SidebarInset className="min-w-0 bg-transparent">
+        <SidebarInset ref={contentRef} className="min-w-0 bg-transparent">
+          <PageMotion target={contentRef} />
           {children}
         </SidebarInset>
       </div>
